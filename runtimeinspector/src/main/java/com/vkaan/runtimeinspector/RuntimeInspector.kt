@@ -2,6 +2,7 @@ package com.vkaan.runtimeinspector
 
 import android.content.Context
 import android.util.Log
+import android.app.Application
 
 object RuntimeInspector {
 
@@ -11,6 +12,7 @@ object RuntimeInspector {
     private var initialized = false
     private lateinit var appContext: Context
     private lateinit var config: Config
+    private var collector: LifecycleCollector? = null
 
     @JvmStatic
     @JvmOverloads
@@ -25,6 +27,14 @@ object RuntimeInspector {
             this.config = config
             initialized = true
         }
+        if (config.enabled) {
+            val app = appContext as? Application
+            if (app != null) {
+                collector = LifecycleCollector().also { it.start(app) }
+            } else {
+                Log.w(TAG, "Not an Application context; lifecycle collection disabled.")
+            }
+        }
         Log.i(TAG, "Initialized. enabled=${config.enabled}")
     }
 
@@ -38,4 +48,6 @@ object RuntimeInspector {
         val enabled: Boolean = true,
         val showOverlay: Boolean = true,
     )
+
+
 }

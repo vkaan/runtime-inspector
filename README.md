@@ -22,5 +22,5 @@ class DemoApp : Application() {
 ```
 
 ## Progress
-- [ ] Step 1 — Library module and initialization
-- [ ] Step 2 — TBD
+- [x] Step 1 — Library module and initialization
+- [x] Step 2 — Collector layer: Activity & Fragment lifecycle events (+ back-stack, per-event instanceId & config-change flag)

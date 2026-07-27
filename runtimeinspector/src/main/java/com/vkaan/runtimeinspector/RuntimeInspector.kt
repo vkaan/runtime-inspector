@@ -12,7 +12,9 @@ object RuntimeInspector {
     private var initialized = false
     private lateinit var appContext: Context
     private lateinit var config: Config
-    private var collector: LifecycleCollector? = null
+
+    private val timeline = Timeline()
+    private val collectors = mutableListOf<Collector>()
 
     @JvmStatic
     @JvmOverloads
@@ -30,7 +32,7 @@ object RuntimeInspector {
         if (config.enabled) {
             val app = appContext as? Application
             if (app != null) {
-                collector = LifecycleCollector().also { it.start(app) }
+                startCollectors(app)
             } else {
                 Log.w(TAG, "Not an Application context; lifecycle collection disabled.")
             }
@@ -38,11 +40,14 @@ object RuntimeInspector {
         Log.i(TAG, "Initialized. enabled=${config.enabled}")
     }
 
+
+    private fun startCollectors(app: Application) {
+        collectors += LifecycleCollector(timeline)
+        collectors.forEach { it.start(app)}
+    }
     val isInitialized: Boolean get() = initialized
 
-    internal fun context(): Context =
-        if (initialized) appContext
-        else error("RuntimeInspector.init() must be called before use.")
+
 
     data class Config(
         val enabled: Boolean = true,

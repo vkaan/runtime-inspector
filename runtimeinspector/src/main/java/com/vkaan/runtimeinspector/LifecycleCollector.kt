@@ -4,24 +4,28 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.os.Bundle
-import android.util.Log
+import android.os.SystemClock
 import android.view.View
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentManager
-import java.util.Collections
 
-internal class LifecycleCollector : Application.ActivityLifecycleCallbacks {
-    private companion object {
-        const val TAG = "RuntimeInspector"
+internal class LifecycleCollector(
+    private val timeline: Timeline,
+) : Collector, Application.ActivityLifecycleCallbacks {
+
+    private var application: Application? = null
+
+    override fun start(application: Application) {
+        this.application = application
+        application.registerActivityLifecycleCallbacks(this)
     }
 
-    private val events = Collections.synchronizedList(mutableListOf<LifecycleEvent>())
-
-    fun events(): List<LifecycleEvent> = events.toList()
-
-    fun start(application: Application) {
-        application.registerActivityLifecycleCallbacks(this)
+    override fun stop() {
+        application?.unregisterActivityLifecycleCallbacks(this)
+        application = null
+        // Per-Activity FragmentLifecycleCallbacks are owned by each FragmentManager and
+        // released when the host Activity is destroyed — nothing to unregister here.
     }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
@@ -29,9 +33,7 @@ internal class LifecycleCollector : Application.ActivityLifecycleCallbacks {
         if (activity is FragmentActivity) {
             activity.supportFragmentManager.registerFragmentLifecycleCallbacks(fragmentCallbacks, true)
             activity.supportFragmentManager.addOnBackStackChangedListener(backStackListener)
-
         }
-
     }
 
     override fun onActivityStarted(activity: Activity) = recordActivity(activity, "STARTED")
@@ -73,12 +75,11 @@ internal class LifecycleCollector : Application.ActivityLifecycleCallbacks {
             recordFragment(fragment, if (pop) "BACKSTACK_POPPED" else "BACKSTACK_PUSHED")
     }
 
-
     // Recording
 
     private fun recordActivity(activity: Activity, stage: String) =
         record(
-            type = LifecycleEvent.SourceType.ACTIVITY,
+            sourceType = RuntimeEvent.Lifecycle.SourceType.ACTIVITY,
             name = activity::class.java.simpleName,
             stage = stage,
             instanceId = System.identityHashCode(activity),
@@ -89,22 +90,30 @@ internal class LifecycleCollector : Application.ActivityLifecycleCallbacks {
 
     private fun recordFragment(fragment: Fragment, stage: String) =
         record(
-            type = LifecycleEvent.SourceType.FRAGMENT,
+            sourceType = RuntimeEvent.Lifecycle.SourceType.FRAGMENT,
             name = fragment::class.java.simpleName,
             stage = stage,
             instanceId = System.identityHashCode(fragment),
         )
 
     private fun record(
-        type: LifecycleEvent.SourceType,
+        sourceType: RuntimeEvent.Lifecycle.SourceType,
         name: String,
         stage: String,
         instanceId: Int,
         isChangingConfigurations: Boolean? = null,
     ) {
-        events.add(LifecycleEvent(type, name, stage, instanceId, isChangingConfigurations))
-        val configNote = if (isChangingConfigurations == true) " (config change)" else ""
-        Log.d(TAG, "${type.name} $name#$instanceId -> $stage$configNote")
+        timeline.record { seq ->
+            RuntimeEvent.Lifecycle(
+                seq = seq,
+                timestampMillis = System.currentTimeMillis(),
+                elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
+                sourceType = sourceType,
+                name = name,
+                stage = stage,
+                instanceId = instanceId,
+                isChangingConfigurations = isChangingConfigurations,
+            )
+        }
     }
-
 }

@@ -1,4 +1,4 @@
-package com.vkaan.runtimeinspector
+package com.vkaan.runtimeinspector.collector
 
 import android.app.Activity
 import android.app.Application
@@ -9,6 +9,8 @@ import android.view.View
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentManager
+import com.vkaan.runtimeinspector.timeline.RuntimeEvent
+import com.vkaan.runtimeinspector.timeline.Timeline
 
 internal class LifecycleCollector(
     private val timeline: Timeline,

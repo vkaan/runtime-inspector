@@ -1,4 +1,4 @@
-package com.vkaan.runtimeinspector
+package com.vkaan.runtimeinspector.timeline
 
 internal data class RuntimeState (
     val appInForeground: Boolean = false,

@@ -1,4 +1,4 @@
-package com.vkaan.runtimeinspector
+package com.vkaan.runtimeinspector.collector
 
 import android.app.Application
 

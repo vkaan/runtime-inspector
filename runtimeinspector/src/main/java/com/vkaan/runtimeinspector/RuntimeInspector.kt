@@ -56,5 +56,30 @@ object RuntimeInspector {
         val showOverlay: Boolean = true,
     )
 
+    @JvmStatic
+    @JvmOverloads
+    fun dump(lastN: Int = 20): String {
+        if (!initialized) return "RuntimeInspector not initialized."
+
+        val state = timeline.state()
+        val events = timeline.snapshot().takeLast(lastN)
+
+        val text = buildString {
+            appendLine("=== RuntimeState ===")
+            appendLine("appInForeground  = ${state.appInForeground}")
+            appendLine("foregroundScreen = ${state.foregroundScreen ?: "-"}")
+            appendLine("backStackDepth   = ${state.backStackDepth}")
+            appendLine("lastTrimMemory   = ${state.lastTrimMemory ?: "-"}")
+            appendLine("lastConfigChange = ${state.lastConfigChange.joinToString("|").ifEmpty { "-" }}")
+            appendLine("lastSeq          = ${state.lastSeq}")
+            appendLine()
+            appendLine("=== Timeline (last ${events.size}) ===")
+            events.forEach { appendLine("#${it.seq}  ${it.logLine()}") }
+        }
+
+        Log.d(TAG, text)
+        return text
+    }
+
 
 }

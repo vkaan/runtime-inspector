@@ -43,7 +43,8 @@ object RuntimeInspector {
 
     private fun startCollectors(app: Application) {
         collectors += LifecycleCollector(timeline)
-        collectors.forEach { it.start(app)}
+        collectors += ProcessLifecycleCollector(timeline)
+        collectors.forEach { it.start(app) }
     }
     val isInitialized: Boolean get() = initialized
 

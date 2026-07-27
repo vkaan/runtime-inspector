@@ -27,4 +27,15 @@ sealed interface RuntimeEvent {
             return "${sourceType.name} $name#$instanceId -> $stage$configNote"
         }
     }
+
+    data class Process(
+        override val seq: Long,
+        override val timestampMillis: Long,
+        override val elapsedRealtimeNanos: Long,
+        val state: State,
+    ) : RuntimeEvent {
+        enum class State { CREATED, FOREGROUNDED, BACKGROUNDED }
+
+        override fun logLine(): String = "PROCESS app -> ${state.name}"
+    }
 }

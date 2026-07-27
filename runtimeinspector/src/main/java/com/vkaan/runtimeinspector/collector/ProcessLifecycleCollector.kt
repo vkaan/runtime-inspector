@@ -1,10 +1,12 @@
-package com.vkaan.runtimeinspector
+package com.vkaan.runtimeinspector.collector
 
 import android.app.Application
 import android.os.SystemClock
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.vkaan.runtimeinspector.timeline.RuntimeEvent
+import com.vkaan.runtimeinspector.timeline.Timeline
 
 internal class ProcessLifecycleCollector (
     private val timeline: Timeline

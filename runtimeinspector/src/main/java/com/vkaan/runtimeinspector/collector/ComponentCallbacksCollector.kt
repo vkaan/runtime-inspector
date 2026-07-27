@@ -1,10 +1,12 @@
-package com.vkaan.runtimeinspector
+package com.vkaan.runtimeinspector.collector
 
 import android.app.Application
 import android.content.ComponentCallbacks2
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.os.SystemClock
+import com.vkaan.runtimeinspector.timeline.RuntimeEvent
+import com.vkaan.runtimeinspector.timeline.Timeline
 
 internal class ComponentCallbacksCollector(
     private val timeline: Timeline,

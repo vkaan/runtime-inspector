@@ -1,4 +1,4 @@
-package com.vkaan.runtimeinspector
+package com.vkaan.runtimeinspector.timeline
 
 import android.content.ComponentCallbacks2
 

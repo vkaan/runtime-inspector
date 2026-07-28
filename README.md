@@ -10,7 +10,8 @@ No bytecode instrumentation, no reflection — only official callback mechanisms
 
 - **Activity & Fragment lifecycle** — every transition, with per-instance identity and a
   configuration-change flag that distinguishes a rotation from a genuine background.
-- **Fragment back stack** — push/pop events and current depth.
+- **Fragment back stack** — push/pop events, plus depth tracked per Activity and measured from
+  the `FragmentManager` rather than counted, so it survives rotation and Activity teardown.
 - **Process lifecycle** — whole-app foreground/background, debounced so rotations don't
   register as false backgrounding.
 - **Memory pressure** — `onTrimMemory` / `onLowMemory` levels.
@@ -64,36 +65,24 @@ class DemoApp : Application() {
 Collection starts automatically. Events are logged under the tag `RuntimeInspector`:
 
 ```
-PROCESS  app -> FOREGROUNDED
+PROCESS app -> FOREGROUNDED
 ACTIVITY MainActivity#154959438 -> RESUMED
-FRAGMENT PersonDetailFragment#221733619 -> BACKSTACK_PUSHED
-MEMORY   onTrimMemory(UI_HIDDEN)
-CONFIG   changed: ORIENTATION|SCREEN_SIZE
+BACKSTACK PUSHED PersonDetailFragment in MainActivity#154959438
+FRAGMENT PersonDetailFragment#192886170 -> RESUMED
+MEMORY onTrimMemory(UI_HIDDEN)
+CONFIG changed: ORIENTATION|SCREEN_SIZE
 ```
 
-### Inspecting state
+### Runtime state
 
-`dump()` returns a point-in-time snapshot of the derived state plus the most recent events,
-and logs it as well:
+Every event is folded into a `RuntimeState` as it arrives: whether the app is in the
+foreground, the current screen (the resumed Fragment when it belongs to the resumed Activity,
+otherwise the Activity), back stack depth per Activity, the last memory trim level, and the
+fields of the last configuration change.
 
-```kotlin
-val snapshot = RuntimeInspector.dump()      // also accepts dump(lastN = 50)
-```
-
-```
-=== RuntimeState ===
-appInForeground  = true
-foregroundScreen = MainActivity#1980007
-backStackDepth   = 0
-lastTrimMemory   = BACKGROUND
-lastConfigChange = ORIENTATION|SCREEN_SIZE
-lastSeq          = 41
-
-=== Timeline (last 20) ===
-#22  PROCESS app -> FOREGROUNDED
-#23  CONFIG changed: ORIENTATION|SCREEN_SIZE
-...
-```
+`RuntimeState` is `internal` and has no accessor yet. The rules layer is its intended
+consumer, and exposing a shape that is still moving would freeze it too early. Until then the
+event log above is the observable surface.
 
 ### Configuration
 
@@ -127,7 +116,10 @@ com/vkaan/runtimeinspector/
     └── RuntimeState.kt
 ```
 
-Only `RuntimeInspector` is public; everything else is `internal`.
+`RuntimeInspector` is the intended public surface — `init()`, `isInitialized`, `Config`.
+`Timeline`, `RuntimeState` and the collectors are `internal`. `RuntimeEvent` is currently
+public but nothing public hands one out; whether it is exposed deliberately or tightened
+depends on what the rules layer needs.
 
 ## Building
 

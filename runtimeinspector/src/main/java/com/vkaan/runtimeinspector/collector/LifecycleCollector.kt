@@ -10,6 +10,8 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentManager
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
+import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.SourceType
+import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.Stage
 import com.vkaan.runtimeinspector.timeline.Timeline
 
 internal class LifecycleCollector(
@@ -31,79 +33,113 @@ internal class LifecycleCollector(
     }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
-        recordActivity(activity, "CREATED")
+        recordActivity(activity, Stage.CREATED)
         if (activity is FragmentActivity) {
-            activity.supportFragmentManager.registerFragmentLifecycleCallbacks(fragmentCallbacks, true)
-            activity.supportFragmentManager.addOnBackStackChangedListener(backStackListener)
+            // Both listeners are created per Activity so they can capture which Activity they
+            // belong to; a single shared instance could not tell the callbacks apart.
+            val hostId = System.identityHashCode(activity)
+            val hostName = activity::class.java.simpleName
+            val fm = activity.supportFragmentManager
+            fm.registerFragmentLifecycleCallbacks(fragmentCallbacks(hostId, fm), true)
+            fm.addOnBackStackChangedListener(backStackListener(hostId, hostName))
         }
     }
 
-    override fun onActivityStarted(activity: Activity) = recordActivity(activity, "STARTED")
-    override fun onActivityResumed(activity: Activity) = recordActivity(activity, "RESUMED")
-    override fun onActivityPaused(activity: Activity) = recordActivity(activity, "PAUSED")
-    override fun onActivityStopped(activity: Activity) = recordActivity(activity, "STOPPED")
-    override fun onActivityDestroyed(activity: Activity) = recordActivity(activity, "DESTROYED")
+    override fun onActivityStarted(activity: Activity) = recordActivity(activity, Stage.STARTED)
+    override fun onActivityResumed(activity: Activity) = recordActivity(activity, Stage.RESUMED)
+    override fun onActivityPaused(activity: Activity) = recordActivity(activity, Stage.PAUSED)
+    override fun onActivityStopped(activity: Activity) = recordActivity(activity, Stage.STOPPED)
+    override fun onActivityDestroyed(activity: Activity) = recordActivity(activity, Stage.DESTROYED)
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
 
-    private val fragmentCallbacks = object : FragmentManager.FragmentLifecycleCallbacks() {
-        override fun onFragmentAttached(fm: FragmentManager, f: Fragment, ctx: Context) =
-            recordFragment(f, "ATTACHED")
-        override fun onFragmentCreated(fm: FragmentManager, f: Fragment, s: Bundle?) =
-            recordFragment(f, "CREATED")
-        override fun onFragmentViewCreated(fm: FragmentManager, f: Fragment, v: View, s: Bundle?) =
-            recordFragment(f, "VIEW_CREATED")
-        override fun onFragmentStarted(fm: FragmentManager, f: Fragment) =
-            recordFragment(f, "STARTED")
-        override fun onFragmentResumed(fm: FragmentManager, f: Fragment) =
-            recordFragment(f, "RESUMED")
-        override fun onFragmentPaused(fm: FragmentManager, f: Fragment) =
-            recordFragment(f, "PAUSED")
-        override fun onFragmentStopped(fm: FragmentManager, f: Fragment) =
-            recordFragment(f, "STOPPED")
-        override fun onFragmentViewDestroyed(fm: FragmentManager, f: Fragment) =
-            recordFragment(f, "VIEW_DESTROYED")
-        override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) =
-            recordFragment(f, "DESTROYED")
-        override fun onFragmentDetached(fm: FragmentManager, f: Fragment) =
-            recordFragment(f, "DETACHED")
-    }
+    // The callbacks' own `fm` argument is ignored throughout: with recursive registration it is
+    // the CHILD FragmentManager for nested fragments, whose back stack is not the host's.
+    // `hostFm` is captured once per Activity and is always the one we want to measure.
+    private fun fragmentCallbacks(hostActivityId: Int, hostFm: FragmentManager) =
+        object : FragmentManager.FragmentLifecycleCallbacks() {
+            override fun onFragmentAttached(fm: FragmentManager, f: Fragment, ctx: Context) =
+                recordFragment(f, hostActivityId, hostFm, Stage.ATTACHED)
+            override fun onFragmentCreated(fm: FragmentManager, f: Fragment, s: Bundle?) =
+                recordFragment(f, hostActivityId, hostFm, Stage.CREATED)
+            override fun onFragmentViewCreated(fm: FragmentManager, f: Fragment, v: View, s: Bundle?) =
+                recordFragment(f, hostActivityId, hostFm, Stage.VIEW_CREATED)
+            override fun onFragmentStarted(fm: FragmentManager, f: Fragment) =
+                recordFragment(f, hostActivityId, hostFm, Stage.STARTED)
+            override fun onFragmentResumed(fm: FragmentManager, f: Fragment) =
+                recordFragment(f, hostActivityId, hostFm, Stage.RESUMED)
+            override fun onFragmentPaused(fm: FragmentManager, f: Fragment) =
+                recordFragment(f, hostActivityId, hostFm, Stage.PAUSED)
+            override fun onFragmentStopped(fm: FragmentManager, f: Fragment) =
+                recordFragment(f, hostActivityId, hostFm, Stage.STOPPED)
+            override fun onFragmentViewDestroyed(fm: FragmentManager, f: Fragment) =
+                recordFragment(f, hostActivityId, hostFm, Stage.VIEW_DESTROYED)
+            override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) =
+                recordFragment(f, hostActivityId, hostFm, Stage.DESTROYED)
+            override fun onFragmentDetached(fm: FragmentManager, f: Fragment) =
+                recordFragment(f, hostActivityId, hostFm, Stage.DETACHED)
+        }
 
-    private val backStackListener = object : FragmentManager.OnBackStackChangedListener {
+    private fun backStackListener(
+        hostActivityId: Int,
+        hostActivityName: String,
+    ) = object : FragmentManager.OnBackStackChangedListener {
         // Required by the interface, but we don't need the info-less version.
         override fun onBackStackChanged() = Unit
 
-        // Fragment 1.4.0+: tells us WHICH fragment and whether it was a pop.
-        override fun onBackStackChangeCommitted(fragment: Fragment, pop: Boolean) =
-            recordFragment(fragment, if (pop) "BACKSTACK_POPPED" else "BACKSTACK_PUSHED")
+        // Fragment 1.4.0+: tells us WHICH fragment and whether it was a pop. Note this fires once
+        // per fragment in the transaction, so a replace() onto an occupied container reports twice.
+        override fun onBackStackChangeCommitted(fragment: Fragment, pop: Boolean) {
+            timeline.record { seq ->
+                RuntimeEvent.BackStack(
+                    seq = seq,
+                    timestampMillis = System.currentTimeMillis(),
+                    elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
+                    hostActivityId = hostActivityId,
+                    hostActivityName = hostActivityName,
+                    fragmentName = fragment::class.java.simpleName,
+                    popped = pop,
+                )
+            }
+        }
     }
 
     // Recording
 
-    private fun recordActivity(activity: Activity, stage: String) =
+    private fun recordActivity(activity: Activity, stage: Stage) =
         record(
-            sourceType = RuntimeEvent.Lifecycle.SourceType.ACTIVITY,
+            sourceType = SourceType.ACTIVITY,
             name = activity::class.java.simpleName,
             stage = stage,
             instanceId = System.identityHashCode(activity),
             isChangingConfigurations =
-                if (stage == "STOPPED" || stage == "DESTROYED") activity.isChangingConfigurations
+                if (stage == Stage.STOPPED || stage == Stage.DESTROYED) activity.isChangingConfigurations
                 else null,
+            backStackEntryCount = (activity as? FragmentActivity)?.supportFragmentManager?.backStackEntryCount,
         )
 
-    private fun recordFragment(fragment: Fragment, stage: String) =
-        record(
-            sourceType = RuntimeEvent.Lifecycle.SourceType.FRAGMENT,
-            name = fragment::class.java.simpleName,
-            stage = stage,
-            instanceId = System.identityHashCode(fragment),
-        )
+    private fun recordFragment(
+        fragment: Fragment,
+        hostActivityId: Int,
+        hostFm: FragmentManager,
+        stage: Stage,
+    ) = record(
+        sourceType = SourceType.FRAGMENT,
+        name = fragment::class.java.simpleName,
+        stage = stage,
+        instanceId = System.identityHashCode(fragment),
+        hostActivityId = hostActivityId,
+        // Fragment lifecycle callbacks run after the transaction is applied, so this is settled.
+        backStackEntryCount = hostFm.backStackEntryCount,
+    )
 
     private fun record(
-        sourceType: RuntimeEvent.Lifecycle.SourceType,
+        sourceType: SourceType,
         name: String,
-        stage: String,
+        stage: Stage,
         instanceId: Int,
         isChangingConfigurations: Boolean? = null,
+        hostActivityId: Int? = null,
+        backStackEntryCount: Int? = null,
     ) {
         timeline.record { seq ->
             RuntimeEvent.Lifecycle(
@@ -115,6 +151,8 @@ internal class LifecycleCollector(
                 stage = stage,
                 instanceId = instanceId,
                 isChangingConfigurations = isChangingConfigurations,
+                hostActivityId = hostActivityId,
+                backStackEntryCount = backStackEntryCount,
             )
         }
     }

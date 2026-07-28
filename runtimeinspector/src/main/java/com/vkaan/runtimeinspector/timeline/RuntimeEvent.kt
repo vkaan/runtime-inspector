@@ -15,19 +15,70 @@ sealed interface RuntimeEvent {
         override val elapsedRealtimeNanos: Long,
         val sourceType: SourceType,
         val name: String,
-        val stage: String,
+        val stage: Stage,
         val instanceId: Int,
 
-        val isChangingConfigurations: Boolean?= null,
+        /** Activity STOPPED/DESTROYED only: true when the teardown is a config change. */
+        val isChangingConfigurations: Boolean? = null,
 
+        /** Fragment events only: identity of the Activity hosting this fragment. */
+        val hostActivityId: Int? = null,
+
+        /**
+         * The host FragmentManager's entry count, read at a moment when no transaction is in
+         * flight. Set on FragmentActivity events and on the events of its fragments; null when
+         * the Activity is not a FragmentActivity.
+         */
+        val backStackEntryCount: Int? = null,
 
     ) : RuntimeEvent {
-        enum class SourceType{ ACTIVITY, FRAGMENT}
+        enum class SourceType { ACTIVITY, FRAGMENT }
+
+        /**
+         * Every lifecycle stage this library records. Closed on purpose: the reducer's `when`
+         * is exhaustive over it, so adding a stage here fails the build until it is handled.
+         * Back stack pushes/pops are NOT stages — see [BackStack].
+         */
+        enum class Stage {
+            CREATED,
+            STARTED,
+            RESUMED,
+            PAUSED,
+            STOPPED,
+            DESTROYED,
+            ATTACHED,
+            VIEW_CREATED,
+            VIEW_DESTROYED,
+            DETACHED,
+        }
 
         override fun logLine(): String {
             val configNote = if (isChangingConfigurations == true) " (config change)" else ""
-            return "${sourceType.name} $name#$instanceId -> $stage$configNote"
+            return "${sourceType.name} $name#$instanceId -> ${stage.name}$configNote"
         }
+    }
+
+    /**
+     * A fragment back stack transaction. Separate from [Lifecycle] because it is a navigation
+     * event, not a lifecycle stage.
+     *
+     * Deliberately carries no depth. FragmentManager dispatches this from two different places,
+     * one of which runs before the transaction is applied, so a count read here is sometimes the
+     * pre-transaction value. Depth is sampled from lifecycle callbacks instead, which always run
+     * after the transaction has settled.
+     */
+    data class BackStack(
+        override val seq: Long,
+        override val timestampMillis: Long,
+        override val elapsedRealtimeNanos: Long,
+        val hostActivityId: Int,
+        val hostActivityName: String,
+        val fragmentName: String,
+        val popped: Boolean,
+    ) : RuntimeEvent {
+        override fun logLine(): String =
+            "BACKSTACK ${if (popped) "POPPED" else "PUSHED"} $fragmentName " +
+                "in $hostActivityName#$hostActivityId"
     }
 
     data class Process(

@@ -23,7 +23,7 @@ object RuntimeInspector {
 
     @JvmStatic
     @JvmOverloads
-    fun init(context: Context, config: Config = Config()) {
+    fun init(context: Context, initialConfig: Config = Config()) {
         if (initialized) {
             Log.w(TAG, "init() called more than once — ignoring.")
             return
@@ -31,7 +31,7 @@ object RuntimeInspector {
         synchronized(this) {
             if (initialized) return
             appContext = context.applicationContext
-            this.config = config
+            config = initialConfig
             initialized = true
         }
         if (config.enabled) {

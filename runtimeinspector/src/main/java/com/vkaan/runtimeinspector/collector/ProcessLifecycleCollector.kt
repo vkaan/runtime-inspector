@@ -15,8 +15,14 @@ internal class ProcessLifecycleCollector (
     private val observer = LifecycleEventObserver { _ , event ->
         when (event) {
             Lifecycle.Event.ON_CREATE -> record(RuntimeEvent.Process.State.CREATED)
-            Lifecycle.Event.ON_START  -> record(RuntimeEvent.Process.State.FOREGROUNDED)
-            Lifecycle.Event.ON_STOP   -> record(RuntimeEvent.Process.State.BACKGROUNDED)
+            Lifecycle.Event.ON_START -> {
+                record(RuntimeEvent.Process.State.FOREGROUNDED)
+                HeapSampler.sample(timeline, RuntimeEvent.MemoryUsage.Trigger.APP_FOREGROUNDED)
+            }
+            Lifecycle.Event.ON_STOP -> {
+                record(RuntimeEvent.Process.State.BACKGROUNDED)
+                HeapSampler.sample(timeline, RuntimeEvent.MemoryUsage.Trigger.APP_BACKGROUNDED)
+            }
             else -> Unit
         }
     }

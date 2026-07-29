@@ -43,13 +43,19 @@ internal class LifecycleCollector(
             fm.registerFragmentLifecycleCallbacks(fragmentCallbacks(hostId, fm), true)
             fm.addOnBackStackChangedListener(backStackListener(hostId, hostName))
         }
+        HeapSampler.sample(timeline, RuntimeEvent.MemoryUsage.Trigger.ACTIVITY_CREATED)
     }
+
+
 
     override fun onActivityStarted(activity: Activity) = recordActivity(activity, Stage.STARTED)
     override fun onActivityResumed(activity: Activity) = recordActivity(activity, Stage.RESUMED)
     override fun onActivityPaused(activity: Activity) = recordActivity(activity, Stage.PAUSED)
     override fun onActivityStopped(activity: Activity) = recordActivity(activity, Stage.STOPPED)
-    override fun onActivityDestroyed(activity: Activity) = recordActivity(activity, Stage.DESTROYED)
+    override fun onActivityDestroyed(activity: Activity) {
+        recordActivity(activity, Stage.DESTROYED)
+        HeapSampler.sample(timeline, RuntimeEvent.MemoryUsage.Trigger.ACTIVITY_DESTROYED)
+    }
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
 
     // The callbacks' own `fm` argument is ignored throughout: with recursive registration it is

@@ -13,17 +13,15 @@ internal data class RuntimeState(
     val lastTrimMemory: String? = null,
     val lastConfigChange: List<String> = emptyList(),
     val lastSeq: Long = -1L,
+    val lastHeapUsedBytes: Long? = null,
+    val lastHeapMaxBytes: Long? = null,
 ) {
 
     data class Screen(val name: String, val instanceId: Int) {
         override fun toString(): String = "$name#$instanceId"
     }
 
-    /**
-     * The screen the user is looking at: the resumed fragment when it belongs to the resumed
-     * Activity, otherwise the Activity itself. The host check is what stops a fragment from a
-     * previous Activity being reported as the current screen.
-     */
+
     val foregroundScreen: String?
         get() = when {
             foregroundFragment != null &&
@@ -32,7 +30,7 @@ internal data class RuntimeState(
             else -> foregroundActivity?.toString()
         }
 
-    /** Back stack depth of the foreground Activity only — never a total across Activities. */
+
     val backStackDepth: Int
         get() = foregroundActivity?.let { backStackDepths[it.instanceId] } ?: 0
 
@@ -47,12 +45,17 @@ internal data class RuntimeState(
 
         is RuntimeEvent.Lifecycle -> reduceLifecycle(event)
 
-        // Records that navigation happened; carries no depth on purpose. See RuntimeEvent.BackStack.
+
         is RuntimeEvent.BackStack -> this
 
         is RuntimeEvent.Memory -> copy(lastTrimMemory = event.levelName)
 
         is RuntimeEvent.ConfigChange -> copy(lastConfigChange = event.changedFields)
+
+        is RuntimeEvent.MemoryUsage -> copy(
+            lastHeapUsedBytes = event.usedBytes,
+            lastHeapMaxBytes = event.maxBytes,
+        )
 
     }.copy(lastSeq = event.seq)
 
@@ -93,11 +96,7 @@ internal data class RuntimeState(
         return next.withSampledDepth(event)
     }
 
-    /**
-     * Depth is never counted, only measured — and only from lifecycle callbacks, which run after
-     * a transaction has been applied. A restored back stack (after rotation) fires no push/pop
-     * callbacks at all, so these samples are the only thing that survives a config change.
-     */
+
     private fun withSampledDepth(event: RuntimeEvent.Lifecycle): RuntimeState {
         val count = event.backStackEntryCount ?: return this
 

@@ -15,6 +15,10 @@ internal data class RuntimeState(
     val lastSeq: Long = -1L,
     val lastHeapUsedBytes: Long? = null,
     val lastHeapMaxBytes: Long? = null,
+    val liveActivityIds: Map<Int, String> = emptyMap(),
+    val liveFragmentIds: Map<Int, String> = emptyMap(),
+    val peakLiveActivities: Int = 0,
+    val peakLiveFragments: Int = 0,
 ) {
 
     data class Screen(val name: String, val instanceId: Int) {
@@ -33,6 +37,9 @@ internal data class RuntimeState(
 
     val backStackDepth: Int
         get() = foregroundActivity?.let { backStackDepths[it.instanceId] } ?: 0
+
+    val liveActivities: Int get() = liveActivityIds.size
+    val liveFragments: Int get() = liveFragmentIds.size
 
     fun reduce(event: RuntimeEvent): RuntimeState = when (event) {
         is RuntimeEvent.Process -> copy(
@@ -69,19 +76,26 @@ internal data class RuntimeState(
                 else copy(foregroundFragment = screen, foregroundFragmentHostId = event.hostActivityId)
 
 
+            Stage.CREATED ->
+                if (isActivity) copy(liveActivityIds = liveActivityIds + (event.instanceId to event.name))
+                else copy(liveFragmentIds = liveFragmentIds + (event.instanceId to event.name))
+
             Stage.DESTROYED -> when {
                 isActivity -> copy(
                     foregroundActivity = foregroundActivity.takeIf { it != screen },
                     backStackDepths = backStackDepths - event.instanceId,
+                    liveActivityIds = liveActivityIds - event.instanceId,
                 )
 
-                foregroundFragment == screen ->
-                    copy(foregroundFragment = null, foregroundFragmentHostId = null)
+                foregroundFragment == screen -> copy(
+                    foregroundFragment = null,
+                    foregroundFragmentHostId = null,
+                    liveFragmentIds = liveFragmentIds - event.instanceId,
+                )
 
-                else -> this
+                else -> copy(liveFragmentIds = liveFragmentIds - event.instanceId)
             }
 
-            Stage.CREATED,
             Stage.STARTED,
             Stage.PAUSED,
             Stage.STOPPED,
@@ -91,8 +105,13 @@ internal data class RuntimeState(
             Stage.DETACHED -> this
         }
 
-        return next.withSampledDepth(event)
+        return next.withPeaks().withSampledDepth(event)
     }
+
+    private fun withPeaks(): RuntimeState = copy(
+        peakLiveActivities = maxOf(peakLiveActivities, liveActivities),
+        peakLiveFragments = maxOf(peakLiveFragments, liveFragments),
+    )
 
 
     private fun withSampledDepth(event: RuntimeEvent.Lifecycle): RuntimeState {

@@ -1,6 +1,7 @@
 package com.vkaan.runtimeinspector.timeline
 
 import android.content.ComponentCallbacks2
+import java.util.Locale
 
 sealed interface RuntimeEvent {
     val seq: Long
@@ -18,27 +19,19 @@ sealed interface RuntimeEvent {
         val stage: Stage,
         val instanceId: Int,
 
-        /** Activity STOPPED/DESTROYED only: true when the teardown is a config change. */
+
         val isChangingConfigurations: Boolean? = null,
 
         /** Fragment events only: identity of the Activity hosting this fragment. */
         val hostActivityId: Int? = null,
 
-        /**
-         * The host FragmentManager's entry count, read at a moment when no transaction is in
-         * flight. Set on FragmentActivity events and on the events of its fragments; null when
-         * the Activity is not a FragmentActivity.
-         */
+
         val backStackEntryCount: Int? = null,
 
     ) : RuntimeEvent {
         enum class SourceType { ACTIVITY, FRAGMENT }
 
-        /**
-         * Every lifecycle stage this library records. Closed on purpose: the reducer's `when`
-         * is exhaustive over it, so adding a stage here fails the build until it is handled.
-         * Back stack pushes/pops are NOT stages — see [BackStack].
-         */
+
         enum class Stage {
             CREATED,
             STARTED,
@@ -52,21 +45,14 @@ sealed interface RuntimeEvent {
             DETACHED,
         }
 
+        // Lifecycle
         override fun logLine(): String {
             val configNote = if (isChangingConfigurations == true) " (config change)" else ""
             return "${sourceType.name} $name#$instanceId -> ${stage.name}$configNote"
         }
     }
 
-    /**
-     * A fragment back stack transaction. Separate from [Lifecycle] because it is a navigation
-     * event, not a lifecycle stage.
-     *
-     * Deliberately carries no depth. FragmentManager dispatches this from two different places,
-     * one of which runs before the transaction is applied, so a count read here is sometimes the
-     * pre-transaction value. Depth is sampled from lifecycle callbacks instead, which always run
-     * after the transaction has settled.
-     */
+
     data class BackStack(
         override val seq: Long,
         override val timestampMillis: Long,
@@ -76,6 +62,7 @@ sealed interface RuntimeEvent {
         val fragmentName: String,
         val popped: Boolean,
     ) : RuntimeEvent {
+        // BackStack
         override fun logLine(): String =
             "BACKSTACK ${if (popped) "POPPED" else "PUSHED"} $fragmentName " +
                 "in $hostActivityName#$hostActivityId"
@@ -88,11 +75,11 @@ sealed interface RuntimeEvent {
         val state: State,
     ) : RuntimeEvent {
         enum class State { CREATED, FOREGROUNDED, BACKGROUNDED }
-
+        // Process
         override fun logLine(): String = "PROCESS app -> ${state.name}"
     }
 
-    /** Memory-pressure signals from ComponentCallbacks2.onTrimMemory (FR-06). */
+
     data class Memory(
         override val seq: Long,
         override val timestampMillis: Long,
@@ -100,7 +87,7 @@ sealed interface RuntimeEvent {
         val level: Int,
     ) : RuntimeEvent {
 
-        /** Human-readable name for the raw TRIM_MEMORY_* constant. */
+
         val levelName: String
             get() = when (level) {
                 ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> "UI_HIDDEN"
@@ -112,18 +99,47 @@ sealed interface RuntimeEvent {
                 ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> "COMPLETE"
                 else -> "UNKNOWN($level)"
             }
-
+        // Memory
         override fun logLine(): String = "MEMORY onTrimMemory($levelName)"
     }
 
-    /** Device/app configuration changes from onConfigurationChanged (FR-06). */
+
     data class ConfigChange(
         override val seq: Long,
         override val timestampMillis: Long,
         override val elapsedRealtimeNanos: Long,
         val changedFields: List<String>,
     ) : RuntimeEvent {
+        // ConfigChange
         override fun logLine(): String =
             "CONFIG changed: ${changedFields.joinToString("|").ifEmpty { "NONE" }}"
     }
+
+
+    data class MemoryUsage(
+        override val seq: Long,
+        override val timestampMillis: Long,
+        override val elapsedRealtimeNanos: Long,
+        val usedBytes: Long,
+        val maxBytes: Long,
+        val trigger: Trigger,
+    ) : RuntimeEvent {
+
+        enum class Trigger {
+            ACTIVITY_CREATED,
+            ACTIVITY_DESTROYED,
+            APP_FOREGROUNDED,
+            APP_BACKGROUNDED,
+            TRIM_MEMORY,
+        }
+
+        val usedPercent: Int
+            get() = if (maxBytes <= 0L) 0 else ((usedBytes * 100L) / maxBytes).toInt()
+
+        override fun logLine(): String =
+            "HEAP used=${usedBytes.toMb()} max=${maxBytes.toMb()} ($usedPercent%) on ${trigger.name}"
+    }
 }
+
+private fun Long.toMb(): String =
+    String.format(Locale.US, "%.1fMB", this / 1024.0 / 1024.0)

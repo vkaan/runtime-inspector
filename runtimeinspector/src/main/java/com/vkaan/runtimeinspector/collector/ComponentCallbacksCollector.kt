@@ -59,6 +59,7 @@ internal class ComponentCallbacksCollector(
                 level = level,
             )
         }
+        HeapSampler.sample(timeline, RuntimeEvent.MemoryUsage.Trigger.TRIM_MEMORY)
     }
 
     private fun decodeDiff(diff: Int): List<String> = buildList {

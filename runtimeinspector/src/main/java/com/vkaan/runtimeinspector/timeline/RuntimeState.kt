@@ -68,9 +68,7 @@ internal data class RuntimeState(
                 if (isActivity) copy(foregroundActivity = screen)
                 else copy(foregroundFragment = screen, foregroundFragmentHostId = event.hostActivityId)
 
-            // Only clear if this is still the screen we are pointing at. On a pop the incoming
-            // fragment may resume before the outgoing one is destroyed, and this guard keeps that
-            // late DESTROYED from wiping the fragment that is now on screen.
+
             Stage.DESTROYED -> when {
                 isActivity -> copy(
                     foregroundActivity = foregroundActivity.takeIf { it != screen },
@@ -101,13 +99,12 @@ internal data class RuntimeState(
         val count = event.backStackEntryCount ?: return this
 
         return when (event.sourceType) {
-            // Its entry was just dropped by DESTROYED above and must not be written back.
+
             SourceType.ACTIVITY ->
                 if (event.stage == Stage.DESTROYED) this
                 else copy(backStackDepths = backStackDepths + (event.instanceId to count))
 
-            // A host is destroyed before its fragments are, so fragment events arrive after the
-            // entry is gone. They may refresh a live host's count, never resurrect a dead one.
+
             SourceType.FRAGMENT -> {
                 val hostId = event.hostActivityId
                 if (hostId == null || hostId !in backStackDepths) this

@@ -3,6 +3,8 @@ package com.vkaan.runtimeinspector.timeline
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.SourceType
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.Stage
 
+private const val MAX_DESTROY_SAMPLES = 3
+
 internal data class RuntimeState(
     val appInForeground: Boolean = false,
     val foregroundActivity: Screen? = null,
@@ -19,11 +21,18 @@ internal data class RuntimeState(
     val liveFragmentIds: Map<Int, String> = emptyMap(),
     val peakLiveActivities: Int = 0,
     val peakLiveFragments: Int = 0,
+    val activityStages: Map<Int, Stage> = emptyMap(),
+    val fragmentHostIds: Map<Int, Int> = emptyMap(),
+    /** Fragments whose host Activity died, keyed to the host's death time (elapsedRealtimeNanos). */
+    val orphanCandidates: Map<Int, Long> = emptyMap(),
+    val destroyHeapSamples: List<DestroyHeapSample> = emptyList(),
 ) {
 
     data class Screen(val name: String, val instanceId: Int) {
         override fun toString(): String = "$name#$instanceId"
     }
+
+    data class DestroyHeapSample(val usedBytes: Long, val liveActivities: Int)
 
 
     val foregroundScreen: String?
@@ -59,10 +68,20 @@ internal data class RuntimeState(
 
         is RuntimeEvent.ConfigChange -> copy(lastConfigChange = event.changedFields)
 
-        is RuntimeEvent.MemoryUsage -> copy(
-            lastHeapUsedBytes = event.usedBytes,
-            lastHeapMaxBytes = event.maxBytes,
-        )
+        is RuntimeEvent.MemoryUsage -> {
+            val sampled = copy(
+                lastHeapUsedBytes = event.usedBytes,
+                lastHeapMaxBytes = event.maxBytes,
+            )
+            if (event.trigger == RuntimeEvent.MemoryUsage.Trigger.ACTIVITY_DESTROYED) {
+                sampled.copy(
+                    destroyHeapSamples = (destroyHeapSamples +
+                        DestroyHeapSample(event.usedBytes, liveActivities)).takeLast(MAX_DESTROY_SAMPLES)
+                )
+            } else {
+                sampled
+            }
+        }
 
     }.copy(lastSeq = event.seq)
 
@@ -78,22 +97,39 @@ internal data class RuntimeState(
 
             Stage.CREATED ->
                 if (isActivity) copy(liveActivityIds = liveActivityIds + (event.instanceId to event.name))
-                else copy(liveFragmentIds = liveFragmentIds + (event.instanceId to event.name))
+                else copy(
+                    liveFragmentIds = liveFragmentIds + (event.instanceId to event.name),
+                    fragmentHostIds = event.hostActivityId
+                        ?.let { fragmentHostIds + (event.instanceId to it) }
+                        ?: fragmentHostIds,
+                )
 
             Stage.DESTROYED -> when {
-                isActivity -> copy(
-                    foregroundActivity = foregroundActivity.takeIf { it != screen },
-                    backStackDepths = backStackDepths - event.instanceId,
-                    liveActivityIds = liveActivityIds - event.instanceId,
-                )
+                isActivity -> {
+                    val hosted = fragmentHostIds.filterValues { it == event.instanceId }.keys
+                    copy(
+                        foregroundActivity = foregroundActivity.takeIf { it != screen },
+                        backStackDepths = backStackDepths - event.instanceId,
+                        liveActivityIds = liveActivityIds - event.instanceId,
+                        fragmentHostIds = fragmentHostIds - hosted,
+                        orphanCandidates = orphanCandidates +
+                            hosted.associateWith { event.elapsedRealtimeNanos },
+                    )
+                }
 
                 foregroundFragment == screen -> copy(
                     foregroundFragment = null,
                     foregroundFragmentHostId = null,
                     liveFragmentIds = liveFragmentIds - event.instanceId,
+                    fragmentHostIds = fragmentHostIds - event.instanceId,
+                    orphanCandidates = orphanCandidates - event.instanceId,
                 )
 
-                else -> copy(liveFragmentIds = liveFragmentIds - event.instanceId)
+                else -> copy(
+                    liveFragmentIds = liveFragmentIds - event.instanceId,
+                    fragmentHostIds = fragmentHostIds - event.instanceId,
+                    orphanCandidates = orphanCandidates - event.instanceId,
+                )
             }
 
             Stage.STARTED,
@@ -105,7 +141,17 @@ internal data class RuntimeState(
             Stage.DETACHED -> this
         }
 
-        return next.withPeaks().withSampledDepth(event)
+        return next.withActivityStage(event).withPeaks().withSampledDepth(event)
+    }
+
+    private fun withActivityStage(event: RuntimeEvent.Lifecycle): RuntimeState {
+        if (event.sourceType != SourceType.ACTIVITY) return this
+        return when (event.stage) {
+            Stage.DESTROYED -> copy(activityStages = activityStages - event.instanceId)
+            Stage.CREATED, Stage.STARTED, Stage.RESUMED, Stage.PAUSED, Stage.STOPPED ->
+                copy(activityStages = activityStages + (event.instanceId to event.stage))
+            else -> this
+        }
     }
 
     private fun withPeaks(): RuntimeState = copy(

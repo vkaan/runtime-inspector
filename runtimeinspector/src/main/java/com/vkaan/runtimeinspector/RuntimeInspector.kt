@@ -7,6 +7,7 @@ import com.vkaan.runtimeinspector.collector.Collector
 import com.vkaan.runtimeinspector.collector.ComponentCallbacksCollector
 import com.vkaan.runtimeinspector.collector.LifecycleCollector
 import com.vkaan.runtimeinspector.collector.ProcessLifecycleCollector
+import com.vkaan.runtimeinspector.rules.Risk
 import com.vkaan.runtimeinspector.timeline.Timeline
 
 object RuntimeInspector {
@@ -53,6 +54,9 @@ object RuntimeInspector {
         collectors.forEach { it.start(app) }
     }
     val isInitialized: Boolean get() = initialized
+
+    @JvmStatic
+    fun risks(): List<Risk> = timeline.risks()
 
 
 

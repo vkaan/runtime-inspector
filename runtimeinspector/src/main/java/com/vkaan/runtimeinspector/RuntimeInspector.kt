@@ -10,6 +10,7 @@ import com.vkaan.runtimeinspector.collector.CrashCollector
 import com.vkaan.runtimeinspector.collector.LifecycleCollector
 import com.vkaan.runtimeinspector.collector.ProcessLifecycleCollector
 import com.vkaan.runtimeinspector.rules.Risk
+import com.vkaan.runtimeinspector.rules.RiskEngine
 import com.vkaan.runtimeinspector.timeline.Timeline
 
 object RuntimeInspector {
@@ -21,7 +22,7 @@ object RuntimeInspector {
     private lateinit var appContext: Context
     private lateinit var config: Config
 
-    private val timeline = Timeline()
+    private lateinit var timeline: Timeline
     private val collectors = mutableListOf<Collector>()
 
     @JvmStatic
@@ -35,6 +36,12 @@ object RuntimeInspector {
             if (initialized) return
             appContext = context.applicationContext
             config = initialConfig
+            timeline = Timeline(
+                riskEngine = RiskEngine.withDefaultRules(
+                    backStackCeiling = initialConfig.backStackCeiling,
+                    heapPercentCeiling = initialConfig.heapPercentCeiling,
+                ),
+            )
             initialized = true
         }
         if (config.enabled) {
@@ -60,12 +67,14 @@ object RuntimeInspector {
     val isInitialized: Boolean get() = initialized
 
     @JvmStatic
-    fun risks(): List<Risk> = timeline.risks()
+    fun risks(): List<Risk> = if (initialized) timeline.risks() else emptyList()
 
 
 
     data class Config(
         val enabled: Boolean = true,
         val showOverlay: Boolean = true,
+        val backStackCeiling: Int = 10,
+        val heapPercentCeiling: Int = 85,
     )
 }

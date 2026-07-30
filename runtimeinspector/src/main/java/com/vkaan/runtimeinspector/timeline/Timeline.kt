@@ -5,8 +5,8 @@ import com.vkaan.runtimeinspector.rules.Risk
 import com.vkaan.runtimeinspector.rules.RiskEngine
 
 internal class Timeline(
+    private val riskEngine: RiskEngine,
     private val capacity: Int = DEFAULT_CAPACITY,
-    private val riskEngine: RiskEngine = RiskEngine(),
 ) {
 
     private companion object {

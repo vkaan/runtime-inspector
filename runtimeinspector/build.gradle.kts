@@ -20,6 +20,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
+    testOptions {
+        unitTests.all {
+            it.testLogging {
+                events("passed", "skipped", "failed")
+            }
+        }
+    }
 }
 
 dependencies {

@@ -26,6 +26,8 @@ internal data class RuntimeState(
     /** Fragments whose host Activity died, keyed to the host's death time (elapsedRealtimeNanos). */
     val orphanCandidates: Map<Int, Long> = emptyMap(),
     val destroyHeapSamples: List<DestroyHeapSample> = emptyList(),
+    /** null until the first connectivity callback arrives. */
+    val networkAvailable: Boolean? = null,
 ) {
 
     data class Screen(val name: String, val instanceId: Int) {
@@ -67,6 +69,10 @@ internal data class RuntimeState(
         is RuntimeEvent.Memory -> copy(lastTrimMemory = event.levelName)
 
         is RuntimeEvent.ConfigChange -> copy(lastConfigChange = event.changedFields)
+
+        is RuntimeEvent.Network -> copy(
+            networkAvailable = event.state == RuntimeEvent.Network.State.AVAILABLE,
+        )
 
         is RuntimeEvent.MemoryUsage -> {
             val sampled = copy(

@@ -5,6 +5,7 @@ import android.util.Log
 import android.app.Application
 import com.vkaan.runtimeinspector.collector.Collector
 import com.vkaan.runtimeinspector.collector.ComponentCallbacksCollector
+import com.vkaan.runtimeinspector.collector.ConnectivityCollector
 import com.vkaan.runtimeinspector.collector.LifecycleCollector
 import com.vkaan.runtimeinspector.collector.ProcessLifecycleCollector
 import com.vkaan.runtimeinspector.rules.Risk
@@ -51,6 +52,7 @@ object RuntimeInspector {
         collectors += LifecycleCollector(timeline)
         collectors += ProcessLifecycleCollector(timeline)
         collectors += ComponentCallbacksCollector(timeline)
+        collectors += ConnectivityCollector(timeline)
         collectors.forEach { it.start(app) }
     }
     val isInitialized: Boolean get() = initialized

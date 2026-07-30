@@ -116,6 +116,22 @@ sealed interface RuntimeEvent {
     }
 
 
+    data class Network(
+        override val seq: Long,
+        override val timestampMillis: Long,
+        override val elapsedRealtimeNanos: Long,
+        val state: State,
+        val transports: List<String> = emptyList(),
+    ) : RuntimeEvent {
+        enum class State { AVAILABLE, LOST }
+
+        // Network
+        override fun logLine(): String =
+            "NETWORK ${state.name}" +
+                if (transports.isEmpty()) "" else " (${transports.joinToString("|")})"
+    }
+
+
     data class MemoryUsage(
         override val seq: Long,
         override val timestampMillis: Long,

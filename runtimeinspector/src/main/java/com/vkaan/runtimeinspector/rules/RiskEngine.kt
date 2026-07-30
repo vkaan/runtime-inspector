@@ -22,6 +22,7 @@ internal class RiskEngine (
             InterruptedFlowRule,
             OrphanFragmentRule,
             ActivityLeakRule,
+            NetworkLossRule,
         )
     }
 

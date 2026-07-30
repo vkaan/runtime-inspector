@@ -19,6 +19,7 @@ internal data class RuntimeState(
     val liveFragmentIds: Map<Int, String> = emptyMap(),
     val peakLiveActivities: Int = 0,
     val peakLiveFragments: Int = 0,
+    val activityStages: Map<Int, Stage> = emptyMap(),
 ) {
 
     data class Screen(val name: String, val instanceId: Int) {
@@ -105,7 +106,17 @@ internal data class RuntimeState(
             Stage.DETACHED -> this
         }
 
-        return next.withPeaks().withSampledDepth(event)
+        return next.withActivityStage(event).withPeaks().withSampledDepth(event)
+    }
+
+    private fun withActivityStage(event: RuntimeEvent.Lifecycle): RuntimeState {
+        if (event.sourceType != SourceType.ACTIVITY) return this
+        return when (event.stage) {
+            Stage.DESTROYED -> copy(activityStages = activityStages - event.instanceId)
+            Stage.CREATED, Stage.STARTED, Stage.RESUMED, Stage.PAUSED, Stage.STOPPED ->
+                copy(activityStages = activityStages + (event.instanceId to event.stage))
+            else -> this
+        }
     }
 
     private fun withPeaks(): RuntimeState = copy(

@@ -74,6 +74,9 @@ internal data class RuntimeState(
             networkAvailable = event.state == RuntimeEvent.Network.State.AVAILABLE,
         )
 
+        // Crash: the process dies right after this event; there is no future state to inform.
+        is RuntimeEvent.Crash -> this
+
         is RuntimeEvent.MemoryUsage -> {
             val sampled = copy(
                 lastHeapUsedBytes = event.usedBytes,

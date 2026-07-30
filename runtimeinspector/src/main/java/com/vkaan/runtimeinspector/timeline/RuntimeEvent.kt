@@ -116,6 +116,38 @@ sealed interface RuntimeEvent {
     }
 
 
+    data class Crash(
+        override val seq: Long,
+        override val timestampMillis: Long,
+        override val elapsedRealtimeNanos: Long,
+        val threadName: String,
+        val exceptionClass: String,
+        val exceptionMessage: String?,
+        val topFrame: String?,
+    ) : RuntimeEvent {
+        // Crash
+        override fun logLine(): String =
+            "CRASH $exceptionClass${exceptionMessage?.let { ": $it" }.orEmpty()} " +
+                "on thread=$threadName${topFrame?.let { " at $it" }.orEmpty()}"
+    }
+
+
+    data class Network(
+        override val seq: Long,
+        override val timestampMillis: Long,
+        override val elapsedRealtimeNanos: Long,
+        val state: State,
+        val transports: List<String> = emptyList(),
+    ) : RuntimeEvent {
+        enum class State { AVAILABLE, LOST }
+
+        // Network
+        override fun logLine(): String =
+            "NETWORK ${state.name}" +
+                if (transports.isEmpty()) "" else " (${transports.joinToString("|")})"
+    }
+
+
     data class MemoryUsage(
         override val seq: Long,
         override val timestampMillis: Long,

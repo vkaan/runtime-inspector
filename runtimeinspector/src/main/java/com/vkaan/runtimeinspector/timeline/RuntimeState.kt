@@ -23,6 +23,8 @@ internal data class RuntimeState(
     val peakLiveFragments: Int = 0,
     val activityStages: Map<Int, Stage> = emptyMap(),
     val fragmentHostIds: Map<Int, Int> = emptyMap(),
+    /** Fragments whose host Activity died, keyed to the host's death time (elapsedRealtimeNanos). */
+    val orphanCandidates: Map<Int, Long> = emptyMap(),
     val destroyHeapSamples: List<DestroyHeapSample> = emptyList(),
 ) {
 
@@ -103,22 +105,30 @@ internal data class RuntimeState(
                 )
 
             Stage.DESTROYED -> when {
-                isActivity -> copy(
-                    foregroundActivity = foregroundActivity.takeIf { it != screen },
-                    backStackDepths = backStackDepths - event.instanceId,
-                    liveActivityIds = liveActivityIds - event.instanceId,
-                )
+                isActivity -> {
+                    val hosted = fragmentHostIds.filterValues { it == event.instanceId }.keys
+                    copy(
+                        foregroundActivity = foregroundActivity.takeIf { it != screen },
+                        backStackDepths = backStackDepths - event.instanceId,
+                        liveActivityIds = liveActivityIds - event.instanceId,
+                        fragmentHostIds = fragmentHostIds - hosted,
+                        orphanCandidates = orphanCandidates +
+                            hosted.associateWith { event.elapsedRealtimeNanos },
+                    )
+                }
 
                 foregroundFragment == screen -> copy(
                     foregroundFragment = null,
                     foregroundFragmentHostId = null,
                     liveFragmentIds = liveFragmentIds - event.instanceId,
                     fragmentHostIds = fragmentHostIds - event.instanceId,
+                    orphanCandidates = orphanCandidates - event.instanceId,
                 )
 
                 else -> copy(
                     liveFragmentIds = liveFragmentIds - event.instanceId,
                     fragmentHostIds = fragmentHostIds - event.instanceId,
+                    orphanCandidates = orphanCandidates - event.instanceId,
                 )
             }
 

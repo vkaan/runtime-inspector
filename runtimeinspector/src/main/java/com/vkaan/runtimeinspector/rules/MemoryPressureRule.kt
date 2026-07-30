@@ -4,9 +4,9 @@ import android.content.ComponentCallbacks2
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
 import com.vkaan.runtimeinspector.timeline.RuntimeState
 
-internal object MemoryPressureRule : RiskRule {
-
-    private const val HEAP_PERCENT_CEILING = 85
+internal class MemoryPressureRule(
+    private val heapPercentCeiling: Int,
+) : RiskRule {
 
     override val id = "MEMORY_PRESSURE"
 
@@ -25,7 +25,7 @@ internal object MemoryPressureRule : RiskRule {
             )
         }
         if (event is RuntimeEvent.MemoryUsage) {
-            if (event.usedPercent < HEAP_PERCENT_CEILING) return null
+            if (event.usedPercent < heapPercentCeiling) return null
             return Risk(
                 ruleId = id,
                 severity = Risk.Severity.WARNING,

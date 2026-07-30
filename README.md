@@ -113,13 +113,13 @@ so every rule is unit-testable without a device. Findings are deduplicated per r
 |---|---|---|
 | `STATE_LOSS` | ERROR | a Fragment is created while its host Activity is `STOPPED` — the signature of a commit after `onSaveInstanceState` |
 | `MID_FLOW_CRASH` | ERROR / WARNING | an uncaught exception kills the app; ERROR if a flow was open |
-| `MEMORY_PRESSURE` | ERROR / WARNING | `onTrimMemory(RUNNING_CRITICAL)` while foregrounded / heap at ≥ 85% of max |
+| `MEMORY_PRESSURE` | ERROR / WARNING | `onTrimMemory(RUNNING_CRITICAL)` while foregrounded / heap over the configured ceiling (default 85%) |
 | `NETWORK_LOSS` | WARNING / INFO | the default network is lost while foregrounded; WARNING if a flow was open |
 | `RECREATION_MID_FLOW` | WARNING | an Activity is destroyed by a config change while its back stack is non-empty |
 | `ORPHAN_FRAGMENT` | WARNING | a Fragment is still alive 1s after its host Activity was destroyed |
 | `ACTIVITY_LEAK` | WARNING | across 3 destroy-time heap samples: live Activity count flat, heap climbing ≥ 1MB per step |
 | `DUPLICATE_SCREEN` | WARNING | two or more live instances of the same Activity class exist at once |
-| `BACKSTACK_GROWTH` | WARNING | back stack depth reaches 10 |
+| `BACKSTACK_GROWTH` | WARNING | back stack depth reaches the configured ceiling (default 10) |
 | `INTERRUPTED_FLOW` | INFO | the app is backgrounded while a back stack is non-empty |
 
 ### Runtime state
@@ -135,8 +135,18 @@ public window over what they conclude.
 ### Configuration
 
 ```kotlin
-RuntimeInspector.init(this, RuntimeInspector.Config(enabled = false))
+RuntimeInspector.init(
+    this,
+    RuntimeInspector.Config(
+        enabled = true,
+        backStackCeiling = 10,    // BACKSTACK_GROWTH threshold
+        heapPercentCeiling = 85,  // MEMORY_PRESSURE heap threshold (%)
+    ),
+)
 ```
+
+Rule thresholds are per-host settings — different apps have legitimately different
+navigation depths and memory profiles.
 
 ## Architecture
 

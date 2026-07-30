@@ -4,27 +4,30 @@ import android.util.Log
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
 import com.vkaan.runtimeinspector.timeline.RuntimeState
 
-internal class RiskEngine (
-    private val rules: List<RiskRule> = DEFAULT_RULES,
+internal class RiskEngine(
+    private val rules: List<RiskRule>,
     private val capacity: Int = DEFAULT_CAPACITY,
 ) {
 
-    private companion object {
-        const val TAG = "RuntimeInspector"
-        const val DEFAULT_CAPACITY = 100
+    companion object {
+        private const val TAG = "RuntimeInspector"
+        private const val DEFAULT_CAPACITY = 100
 
-        val DEFAULT_RULES: List<RiskRule> = listOf(
-            StateLossRule,
-            BackStackGrowthRule,
-            MemoryPressureRule,
-            RecreationMidFlowRule,
-            DuplicateScreenRule,
-            InterruptedFlowRule,
-            OrphanFragmentRule,
-            ActivityLeakRule,
-            NetworkLossRule,
-            MidFlowCrashRule,
-        )
+        fun withDefaultRules(backStackCeiling: Int, heapPercentCeiling: Int): RiskEngine =
+            RiskEngine(
+                rules = listOf(
+                    StateLossRule,
+                    BackStackGrowthRule(backStackCeiling),
+                    MemoryPressureRule(heapPercentCeiling),
+                    RecreationMidFlowRule,
+                    DuplicateScreenRule,
+                    InterruptedFlowRule,
+                    OrphanFragmentRule,
+                    ActivityLeakRule,
+                    NetworkLossRule,
+                    MidFlowCrashRule,
+                ),
+            )
     }
 
     private val lock = Any()

@@ -19,6 +19,9 @@ internal class RiskEngine (
             MemoryPressureRule,
             RecreationMidFlowRule,
             DuplicateScreenRule,
+            InterruptedFlowRule,
+            OrphanFragmentRule,
+            ActivityLeakRule,
         )
     }
 

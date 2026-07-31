@@ -89,12 +89,25 @@ internal class LifecycleCollector(
         hostActivityId: Int,
         hostActivityName: String,
     ) = object : FragmentManager.OnBackStackChangedListener {
-        // Required by the interface, but we don't need the info-less version.
-        override fun onBackStackChanged() = Unit
 
-        // Fragment 1.4.0+: tells us WHICH fragment and whether it was a pop. Note this fires once
-        // per fragment in the transaction, so a replace() onto an occupied container reports twice.
+        // Fragment 1.4.0+ fires onBackStackChangeCommitted once PER FRAGMENT in the transaction,
+        // so a replace() onto an occupied container reports twice for one navigation. The
+        // FragmentManager dispatches all committed callbacks and then onBackStackChanged() on the
+        // main thread within the same execution, so we buffer the fragments here and flush exactly
+        // one event per transaction when onBackStackChanged() arrives.
+        private val pendingFragments = mutableListOf<String>()
+        private var pendingPop = false
+
         override fun onBackStackChangeCommitted(fragment: Fragment, pop: Boolean) {
+            pendingFragments += fragment::class.java.simpleName
+            pendingPop = pop
+        }
+
+        override fun onBackStackChanged() {
+            if (pendingFragments.isEmpty()) return
+            val fragmentNames = pendingFragments.toList()
+            val popped = pendingPop
+            pendingFragments.clear()
             timeline.record { seq ->
                 RuntimeEvent.BackStack(
                     seq = seq,
@@ -102,8 +115,8 @@ internal class LifecycleCollector(
                     elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
                     hostActivityId = hostActivityId,
                     hostActivityName = hostActivityName,
-                    fragmentName = fragment::class.java.simpleName,
-                    popped = pop,
+                    fragmentNames = fragmentNames,
+                    popped = popped,
                 )
             }
         }

@@ -21,6 +21,8 @@ android {
     }
 
     testOptions {
+        // RiskEngine logs via android.util.Log; let unit tests treat those calls as no-ops.
+        unitTests.isReturnDefaultValues = true
         unitTests.all {
             it.testLogging {
                 events("passed", "skipped", "failed")

@@ -59,12 +59,13 @@ sealed interface RuntimeEvent {
         override val elapsedRealtimeNanos: Long,
         val hostActivityId: Int,
         val hostActivityName: String,
-        val fragmentName: String,
+        /** All fragments in the transaction — a replace() lists both the old and the new one. */
+        val fragmentNames: List<String>,
         val popped: Boolean,
     ) : RuntimeEvent {
         // BackStack
         override fun logLine(): String =
-            "BACKSTACK ${if (popped) "POPPED" else "PUSHED"} $fragmentName " +
+            "BACKSTACK ${if (popped) "POPPED" else "PUSHED"} ${fragmentNames.joinToString("|")} " +
                 "in $hostActivityName#$hostActivityId"
     }
 

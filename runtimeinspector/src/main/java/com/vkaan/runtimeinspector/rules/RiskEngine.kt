@@ -33,6 +33,8 @@ internal class RiskEngine(
                     ActivityLeakRule,
                     NetworkLossRule,
                     MidFlowCrashRule,
+                    ScreenOffMidFlowRule,
+                    PowerLossMidFlowRule,
                 ),
             )
     }

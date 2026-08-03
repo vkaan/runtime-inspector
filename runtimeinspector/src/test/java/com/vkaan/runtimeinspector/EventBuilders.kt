@@ -108,4 +108,15 @@ fun crashEvent(
     topFrame = null,
 )
 
+fun systemEvent(
+    seq: Long,
+    signal: RuntimeEvent.SystemSignal.Signal,
+    nanos: Long = seq,
+) = RuntimeEvent.SystemSignal(
+    seq = seq,
+    timestampMillis = seq,
+    elapsedRealtimeNanos = nanos,
+    signal = signal,
+)
+
 fun mb(n: Int): Long = n * 1024L * 1024L

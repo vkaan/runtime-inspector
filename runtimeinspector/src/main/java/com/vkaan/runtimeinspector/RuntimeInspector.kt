@@ -9,6 +9,7 @@ import com.vkaan.runtimeinspector.collector.ConnectivityCollector
 import com.vkaan.runtimeinspector.collector.CrashCollector
 import com.vkaan.runtimeinspector.collector.LifecycleCollector
 import com.vkaan.runtimeinspector.collector.ProcessLifecycleCollector
+import com.vkaan.runtimeinspector.collector.SystemBroadcastCollector
 import com.vkaan.runtimeinspector.rules.Risk
 import com.vkaan.runtimeinspector.rules.RiskEngine
 import com.vkaan.runtimeinspector.timeline.Timeline
@@ -64,6 +65,7 @@ object RuntimeInspector {
         collectors += ComponentCallbacksCollector(timeline)
         collectors += ConnectivityCollector(timeline)
         collectors += CrashCollector(timeline)
+        collectors += SystemBroadcastCollector(timeline)
         collectors.forEach { it.start(app) }
     }
     val isInitialized: Boolean get() = initialized

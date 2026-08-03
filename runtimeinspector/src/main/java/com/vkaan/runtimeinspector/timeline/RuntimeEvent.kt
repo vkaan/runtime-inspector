@@ -149,6 +149,20 @@ sealed interface RuntimeEvent {
     }
 
 
+    /** Device-level signals delivered as system broadcasts (screen, battery, shutdown). */
+    data class SystemSignal(
+        override val seq: Long,
+        override val timestampMillis: Long,
+        override val elapsedRealtimeNanos: Long,
+        val signal: Signal,
+    ) : RuntimeEvent {
+        enum class Signal { SCREEN_ON, SCREEN_OFF, BATTERY_LOW, BATTERY_OKAY, SHUTDOWN }
+
+        // SystemSignal
+        override fun logLine(): String = "SYSTEM ${signal.name}"
+    }
+
+
     data class MemoryUsage(
         override val seq: Long,
         override val timestampMillis: Long,

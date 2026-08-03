@@ -87,6 +87,9 @@ internal data class RuntimeState(
         // Crash: the process dies right after this event; there is no future state to inform.
         is RuntimeEvent.Crash -> this
 
+        // Rules read these off the event itself; no state field has a reader yet.
+        is RuntimeEvent.SystemSignal -> this
+
         is RuntimeEvent.MemoryUsage -> {
             val sampled = copy(
                 lastHeapUsedBytes = event.usedBytes,

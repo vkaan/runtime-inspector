@@ -122,6 +122,8 @@ so every rule is unit-testable without a device. Findings are deduplicated per r
 | `DUPLICATE_SCREEN` | WARNING | two or more live instances of the same Activity class exist at once |
 | `BACKSTACK_GROWTH` | WARNING | back stack depth reaches the configured ceiling (default 10) |
 | `INTERRUPTED_FLOW` | INFO | the app is backgrounded while a back stack is non-empty |
+| `SCREEN_OFF_MID_FLOW` | WARNING | the screen turns off while foregrounded with a flow open — idle timeout mid-interaction |
+| `POWER_LOSS_MID_FLOW` | ERROR / WARNING | the device shuts down (ERROR) or reports low battery (WARNING) while a flow is open |
 
 ### Runtime state
 

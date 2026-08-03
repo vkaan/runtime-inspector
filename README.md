@@ -115,6 +115,7 @@ so every rule is unit-testable without a device. Findings are deduplicated per r
 | `MID_FLOW_CRASH` | ERROR / WARNING | an uncaught exception kills the app; ERROR if a flow was open |
 | `MEMORY_PRESSURE` | ERROR / WARNING | `onTrimMemory(RUNNING_CRITICAL)` while foregrounded / heap over the configured ceiling (default 85%) |
 | `NETWORK_LOSS` | WARNING / INFO | the default network is lost while foregrounded; WARNING if a flow was open |
+| `NETWORK_FLAPPING` | WARNING | the network is lost 3 times (configurable) within 60s (configurable) — the link itself is unstable |
 | `RECREATION_MID_FLOW` | WARNING | an Activity is destroyed by a config change while its back stack is non-empty |
 | `ORPHAN_FRAGMENT` | WARNING | a Fragment is still alive 1s after its host Activity was destroyed |
 | `ACTIVITY_LEAK` | WARNING | across 3 destroy-time heap samples: live Activity count flat, heap climbing ≥ 1MB per step |
@@ -141,6 +142,8 @@ RuntimeInspector.init(
         enabled = true,
         backStackCeiling = 10,    // BACKSTACK_GROWTH threshold
         heapPercentCeiling = 85,  // MEMORY_PRESSURE heap threshold (%)
+        networkFlapCount = 3,     // NETWORK_FLAPPING: losses within the window (max 10)
+        networkFlapWindowSeconds = 60,
     ),
 )
 ```

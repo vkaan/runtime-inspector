@@ -14,12 +14,18 @@ internal class RiskEngine(
         private const val DEFAULT_CAPACITY = 100
         private val LOG_MILESTONES = setOf(10, 100, 1_000, 10_000)
 
-        fun withDefaultRules(backStackCeiling: Int, heapPercentCeiling: Int): RiskEngine =
+        fun withDefaultRules(
+            backStackCeiling: Int,
+            heapPercentCeiling: Int,
+            networkFlapCount: Int,
+            networkFlapWindowSeconds: Int,
+        ): RiskEngine =
             RiskEngine(
                 rules = listOf(
                     StateLossRule,
                     BackStackGrowthRule(backStackCeiling),
                     MemoryPressureRule(heapPercentCeiling),
+                    NetworkFlappingRule(networkFlapCount, networkFlapWindowSeconds),
                     RecreationMidFlowRule,
                     DuplicateScreenRule,
                     InterruptedFlowRule,

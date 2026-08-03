@@ -4,6 +4,7 @@ import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.SourceType
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.Stage
 
 private const val MAX_DESTROY_SAMPLES = 3
+private const val MAX_NETWORK_LOSS_SAMPLES = 10
 
 internal data class RuntimeState(
     val appInForeground: Boolean = false,
@@ -28,6 +29,8 @@ internal data class RuntimeState(
     val destroyHeapSamples: List<DestroyHeapSample> = emptyList(),
     /** null until the first connectivity callback arrives. */
     val networkAvailable: Boolean? = null,
+    /** elapsedRealtimeNanos of recent network losses, oldest first. NETWORK_FLAPPING reads this. */
+    val recentNetworkLossNanos: List<Long> = emptyList(),
 ) {
 
     data class Screen(val name: String, val instanceId: Int) {
@@ -72,6 +75,13 @@ internal data class RuntimeState(
 
         is RuntimeEvent.Network -> copy(
             networkAvailable = event.state == RuntimeEvent.Network.State.AVAILABLE,
+            recentNetworkLossNanos =
+                if (event.state == RuntimeEvent.Network.State.LOST) {
+                    (recentNetworkLossNanos + event.elapsedRealtimeNanos)
+                        .takeLast(MAX_NETWORK_LOSS_SAMPLES)
+                } else {
+                    recentNetworkLossNanos
+                },
         )
 
         // Crash: the process dies right after this event; there is no future state to inform.

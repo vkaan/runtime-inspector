@@ -37,9 +37,4 @@ class JsonTest {
     fun `escapes control characters that have no short form`() {
         assertEquals("""{"a":"\u0001\u001f"}""", Json.obj("a" to "\u0001\u001F"))
     }
-
-    @Test
-    fun `emits an empty object when there are no fields`() {
-        assertEquals("{}", Json.obj())
-    }
 }

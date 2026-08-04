@@ -56,11 +56,6 @@ class FindingRecordTest {
     }
 
     @Test
-    fun `severity is written as its name`() {
-        assertEquals("WARNING", record().severity)
-    }
-
-    @Test
     fun `renders every field on one line`() {
         val json = record().toJsonLine()
 

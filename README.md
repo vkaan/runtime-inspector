@@ -156,11 +156,15 @@ navigation depths and memory profiles.
 
 ### Notifications
 
-With `notifyOnRisk`, each finding is posted as a silent status-bar notification
-(`IMPORTANCE_LOW` — no sound, no heads-up banner). Repeats **update the existing
-notification** with a `×N` count rather than stacking, because the notification ID is
-derived from the same rule + subject key used for deduplication. Logcat still receives
-every finding regardless of this setting.
+With `notifyOnRisk`, each finding is posted as a heads-up notification (`IMPORTANCE_HIGH`)
+so it appears over the screen as it fires. Repeats **update the existing notification**
+with a `×N` count rather than stacking, because the notification ID is derived from the
+same rule + subject key used for deduplication. Logcat still receives every finding
+regardless of this setting.
+
+Android freezes a channel's settings once it has been created on a device, so `CHANNEL_ID`
+carries a version suffix — changing importance requires shipping a new channel id, not
+editing the existing one.
 
 The library declares **no notification permission**, so nothing is added to the host's
 merged manifest. On API 33+ that means notifications only appear if the host app already

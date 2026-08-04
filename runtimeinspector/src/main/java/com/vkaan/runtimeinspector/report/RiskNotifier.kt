@@ -11,7 +11,9 @@ internal class RiskNotifier (
     private val context: Context,
 ) {
     private companion object {
-        const val CHANNEL_ID = "runtimeinspector_risks"
+        // Android freezes a channel's settings once it exists on a device, so the id carries a
+        // version suffix: changing importance means shipping a new channel, not editing this one.
+        const val CHANNEL_ID = "runtimeinspector_risks_v2"
         const val CHANNEL_NAME = "Runtime risks"
     }
 
@@ -21,7 +23,7 @@ internal class RiskNotifier (
     init {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager?.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH)
             )
         }
     }
@@ -38,6 +40,10 @@ internal class RiskNotifier (
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            // Channels carry importance from API 26 on; below that the banner is driven by
+            // priority, so both are set to keep behaviour identical across the fleet.
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
             .build()
 

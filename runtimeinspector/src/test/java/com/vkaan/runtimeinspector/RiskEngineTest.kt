@@ -72,4 +72,57 @@ class RiskEngineTest {
         val findings = engine.snapshot()
         assertEquals(listOf("b", "c"), findings.map { it.subject })
     }
+
+    @Test
+    fun `listener is called for a new finding`() {
+        val reported = mutableListOf<Risk>()
+        val engine = RiskEngine(rules = listOf(rule), onReport = { reported += it })
+
+        fire(engine, seq = 1)
+
+        assertEquals(1, reported.size)
+        assertEquals("TEST_RULE", reported.single().ruleId)
+        assertEquals("screenA", reported.single().subject)
+    }
+
+    @Test
+    fun `repeats reach the listener only at milestones`() {
+        val reported = mutableListOf<Risk>()
+        val engine = RiskEngine(rules = listOf(rule), onReport = { reported += it })
+
+        // Occurrences 1..5: only the very first is reportable.
+        repeat(5) { i -> fire(engine, seq = i.toLong()) }
+        assertEquals(1, reported.size)
+
+        // Occurrences 6..10: the 10th is a milestone, so exactly one more arrives.
+        repeat(5) { i -> fire(engine, seq = 5L + i) }
+        assertEquals(2, reported.size)
+        assertEquals(10, reported.last().occurrences)
+    }
+
+    @Test
+    fun `a throwing listener does not break the engine`() {
+        val seqsSeenBySecondRule = mutableListOf<Long>()
+        val secondRule = object : RiskRule {
+            override val id = "SECOND_RULE"
+            override fun evaluate(
+                event: RuntimeEvent,
+                before: RuntimeState,
+                after: RuntimeState,
+            ): Risk? {
+                seqsSeenBySecondRule += event.seq
+                return null
+            }
+        }
+        val engine = RiskEngine(
+            rules = listOf(rule, secondRule),
+            onReport = { error("listener boom") },
+        )
+
+        fire(engine, seq = 1)
+
+        // The finding was still recorded, and the rule after the throwing report still ran.
+        assertEquals(1, engine.snapshot().size)
+        assertEquals(listOf(1L), seqsSeenBySecondRule)
+    }
 }

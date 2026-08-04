@@ -20,7 +20,8 @@ internal object MidFlowCrashRule : RiskRule {
             } else {
                 "Uncaught $simpleName on thread ${event.threadName}."
             },
-            subject = before.foregroundScreen ?: "app",
+            subject = before.foregroundScreen?.name ?: "app",
+            instanceId = before.foregroundScreen?.instanceId,
             seq = event.seq,
             timestampMillis = event.timestampMillis,
         )

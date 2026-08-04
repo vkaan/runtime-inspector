@@ -13,7 +13,8 @@ internal object NetworkLossRule : RiskRule {
         if (!after.appInForeground) return null
 
         val midFlow = after.backStackDepths.values.any { it > 0 }
-        val screen = after.foregroundScreen ?: "app"
+        val screen = after.foregroundScreen
+        val name = screen?.name ?: "app"
 
         return Risk(
             ruleId = id,
@@ -24,7 +25,10 @@ internal object NetworkLossRule : RiskRule {
             } else {
                 "Network lost while the app was foregrounded."
             },
-            subject = if (midFlow) "$screen:mid-flow" else screen,
+            // The mid-flow suffix stays part of the identity: a loss during a transaction is a
+            // different finding from an idle one, and they carry different severities.
+            subject = if (midFlow) "$name:mid-flow" else name,
+            instanceId = screen?.instanceId,
             seq = event.seq,
             timestampMillis = event.timestampMillis,
         )

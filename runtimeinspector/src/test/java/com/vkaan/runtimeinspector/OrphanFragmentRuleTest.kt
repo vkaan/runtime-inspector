@@ -33,7 +33,8 @@ class OrphanFragmentRuleTest {
         val risk = OrphanFragmentRule.evaluate(event, before = state, after = state.reduce(event))
 
         assertEquals(Risk.Severity.WARNING, risk?.severity)
-        assertEquals("TestFragment#2", risk?.subject)
+        assertEquals("TestFragment", risk?.subject)
+        assertEquals(2, risk?.instanceId)
     }
 
     @Test

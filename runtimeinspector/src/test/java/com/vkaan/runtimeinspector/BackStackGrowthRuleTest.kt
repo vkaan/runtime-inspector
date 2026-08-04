@@ -21,7 +21,8 @@ class BackStackGrowthRuleTest {
         val risk = rule.evaluate(event, before = state, after = state.reduce(event))
 
         assertEquals(Risk.Severity.WARNING, risk?.severity)
-        assertEquals("TestActivity#1", risk?.subject)
+        assertEquals("TestActivity", risk?.subject)
+        assertEquals(1, risk?.instanceId)
     }
 
     @Test

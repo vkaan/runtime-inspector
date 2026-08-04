@@ -22,7 +22,8 @@ internal object RecreationMidFlowRule : RiskRule {
             message = "Activity destroyed for a config change while its back stack held " +
                 "$depth entries — in-flight callbacks and results can be lost; " +
                 "verify state restoration.",
-            subject = "${event.name}#${event.instanceId}",
+            subject = event.name,
+            instanceId = event.instanceId,
             seq = event.seq,
             timestampMillis = event.timestampMillis,
         )

@@ -20,7 +20,8 @@ internal object StateLossRule : RiskRule {
             severity = Risk.Severity.ERROR,
             message = "Fragment created while its host Activity is STOPPED — " +
                 "likely a commit after onSaveInstanceState; state can be silently lost.",
-            subject = "${event.name}#${event.instanceId}",
+            subject = event.name,
+            instanceId = event.instanceId,
             seq = event.seq,
             timestampMillis = event.timestampMillis,
         )

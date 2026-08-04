@@ -23,7 +23,8 @@ internal object OrphanFragmentRule : RiskRule {
             severity = Risk.Severity.WARNING,
             message = "$name still alive over 1s after its host Activity was destroyed — " +
                 "something is holding a reference to it (likely leaked).",
-            subject = "$name#${oldest.key}",
+            subject = name,
+            instanceId = oldest.key,
             seq = event.seq,
             timestampMillis = event.timestampMillis,
         )

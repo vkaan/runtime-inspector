@@ -20,7 +20,8 @@ internal object DuplicateScreenRule : RiskRule {
             severity = Risk.Severity.WARNING,
             message = "$copies live instances of ${event.name} at once — " +
                 "double-tap launch or launchMode misconfiguration.",
-            subject = "${event.name}#${event.instanceId}",
+            subject = event.name,
+            instanceId = event.instanceId,
             seq = event.seq,
             timestampMillis = event.timestampMillis,
         )

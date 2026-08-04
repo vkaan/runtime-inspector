@@ -33,7 +33,7 @@ internal class RiskNotifier (
 
         val title = "[${risk.severity.name}] ${risk.ruleId}" +
             if (risk.occurrences > 1) " ×${risk.occurrences}" else ""
-        val text = risk.subject?.let { "$it — ${risk.message}" } ?: risk.message
+        val text = risk.label()?.let { "$it — ${risk.message}" } ?: risk.message
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_warning)

@@ -10,6 +10,7 @@ import com.vkaan.runtimeinspector.collector.CrashCollector
 import com.vkaan.runtimeinspector.collector.LifecycleCollector
 import com.vkaan.runtimeinspector.collector.ProcessLifecycleCollector
 import com.vkaan.runtimeinspector.collector.SystemBroadcastCollector
+import com.vkaan.runtimeinspector.report.RiskNotifier
 import com.vkaan.runtimeinspector.rules.Risk
 import com.vkaan.runtimeinspector.rules.RiskEngine
 import com.vkaan.runtimeinspector.timeline.Timeline
@@ -37,12 +38,15 @@ object RuntimeInspector {
             if (initialized) return
             appContext = context.applicationContext
             config = initialConfig
+            val notifier =
+                if (initialConfig.notifyOnRisk) RiskNotifier(appContext) else null
             timeline = Timeline(
                 riskEngine = RiskEngine.withDefaultRules(
                     backStackCeiling = initialConfig.backStackCeiling,
                     heapPercentCeiling = initialConfig.heapPercentCeiling,
                     networkFlapCount = initialConfig.networkFlapCount,
                     networkFlapWindowSeconds = initialConfig.networkFlapWindowSeconds,
+                    onReport = notifier?.let { { risk -> it.notify(risk) } },
                 ),
             )
             initialized = true
@@ -56,7 +60,7 @@ object RuntimeInspector {
             }
         }
         Log.i(TAG, "Initialized. enabled=${config.enabled}")
-    }
+     }
 
 
     private fun startCollectors(app: Application) {
@@ -77,7 +81,8 @@ object RuntimeInspector {
 
     data class Config(
         val enabled: Boolean = true,
-        val showOverlay: Boolean = true,
+        /** Post a status-bar notification for each finding. Repeats update in place with a count. */
+        val notifyOnRisk: Boolean = true,
         val backStackCeiling: Int = 10,
         val heapPercentCeiling: Int = 85,
         /** NETWORK_FLAPPING: this many losses within the window below. Must be ≤ 10 (state cap). */

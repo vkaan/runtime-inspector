@@ -7,6 +7,7 @@ import com.vkaan.runtimeinspector.timeline.RuntimeState
 internal class RiskEngine(
     private val rules: List<RiskRule>,
     private val capacity: Int = DEFAULT_CAPACITY,
+    private val onReport: ((Risk) -> Unit)? = null,
 ) {
 
     companion object {
@@ -19,6 +20,8 @@ internal class RiskEngine(
             heapPercentCeiling: Int,
             networkFlapCount: Int,
             networkFlapWindowSeconds: Int,
+            onReport: ((Risk) -> Unit)? = null,
+
         ): RiskEngine =
             RiskEngine(
                 rules = listOf(
@@ -36,6 +39,7 @@ internal class RiskEngine(
                     ScreenOffMidFlowRule,
                     PowerLossMidFlowRule,
                 ),
+                onReport = onReport,
             )
     }
 
@@ -77,6 +81,12 @@ internal class RiskEngine(
             when (toLog.severity) {
                 Risk.Severity.ERROR -> Log.e(TAG, line)
                 else -> Log.w(TAG, line)
+            }
+
+            try {
+                onReport?.invoke(toLog)
+            } catch (t: Throwable) {
+                Log.e(TAG, "Risk listener threw - continuing.", t)
             }
         }
     }

@@ -142,6 +142,7 @@ RuntimeInspector.init(
     this,
     RuntimeInspector.Config(
         enabled = true,
+        notifyOnRisk = true,      // status-bar notification per finding
         backStackCeiling = 10,    // BACKSTACK_GROWTH threshold
         heapPercentCeiling = 85,  // MEMORY_PRESSURE heap threshold (%)
         networkFlapCount = 3,     // NETWORK_FLAPPING: losses within the window (max 10)
@@ -152,6 +153,18 @@ RuntimeInspector.init(
 
 Rule thresholds are per-host settings — different apps have legitimately different
 navigation depths and memory profiles.
+
+### Notifications
+
+With `notifyOnRisk`, each finding is posted as a silent status-bar notification
+(`IMPORTANCE_LOW` — no sound, no heads-up banner). Repeats **update the existing
+notification** with a `×N` count rather than stacking, because the notification ID is
+derived from the same rule + subject key used for deduplication. Logcat still receives
+every finding regardless of this setting.
+
+The library declares **no notification permission**, so nothing is added to the host's
+merged manifest. On API 33+ that means notifications only appear if the host app already
+holds `POST_NOTIFICATIONS`; on the Android 9–10 target fleet no permission is required.
 
 ## Architecture
 

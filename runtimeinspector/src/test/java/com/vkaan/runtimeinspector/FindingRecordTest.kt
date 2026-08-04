@@ -12,7 +12,6 @@ class FindingRecordTest {
 
     private val session = SessionContext(
         sessionId = "session-1",
-        bootId = "boot-1",
         appPackage = "com.example.personlist",
         appVersionName = "1.2.3",
         appVersionCode = 42L,
@@ -66,7 +65,7 @@ class FindingRecordTest {
         val json = record().toJsonLine()
 
         assertEquals(
-            """{"session_id":"session-1","boot_id":"boot-1",""" +
+            """{"session_id":"session-1",""" +
                 """"app_package":"com.example.personlist","app_version_name":"1.2.3",""" +
                 """"app_version_code":42,"library_version":"0.1.0",""" +
                 """"device_model":"Pixel 3","android_sdk":28,""" +

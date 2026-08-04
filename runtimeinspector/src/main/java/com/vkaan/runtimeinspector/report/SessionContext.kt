@@ -7,14 +7,11 @@ package com.vkaan.runtimeinspector.report
  * fills it from PackageManager and Build lands separately.
  *
  * @param sessionId identifies one process lifetime — a new one on every cold start.
- * @param bootId identifies one device uptime, so records can still be ordered across sessions
- *   when the terminal's wall clock is wrong (POS clocks routinely are).
  * @param appVersionCode the build under test. Without this a finding says nothing about
  *   whether a given bank build passes.
  */
 internal data class SessionContext(
     val sessionId: String,
-    val bootId: String,
     val appPackage: String,
     val appVersionName: String,
     val appVersionCode: Long,

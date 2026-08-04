@@ -31,7 +31,6 @@ internal data class FindingRecord(
 
     fun toJsonLine(): String = Json.obj(
         "session_id" to session.sessionId,
-        "boot_id" to session.bootId,
         "app_package" to session.appPackage,
         "app_version_name" to session.appVersionName,
         "app_version_code" to session.appVersionCode,

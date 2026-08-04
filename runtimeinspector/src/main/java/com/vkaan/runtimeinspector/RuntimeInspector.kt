@@ -11,6 +11,8 @@ import com.vkaan.runtimeinspector.collector.LifecycleCollector
 import com.vkaan.runtimeinspector.collector.ProcessLifecycleCollector
 import com.vkaan.runtimeinspector.collector.SystemBroadcastCollector
 import com.vkaan.runtimeinspector.report.RiskNotifier
+import com.vkaan.runtimeinspector.report.SessionContext
+import com.vkaan.runtimeinspector.report.SessionContextFactory
 import com.vkaan.runtimeinspector.rules.Risk
 import com.vkaan.runtimeinspector.rules.RiskEngine
 import com.vkaan.runtimeinspector.timeline.Timeline
@@ -25,6 +27,7 @@ object RuntimeInspector {
     private lateinit var config: Config
 
     private lateinit var timeline: Timeline
+    private lateinit var session: SessionContext
     private val collectors = mutableListOf<Collector>()
 
     @JvmStatic
@@ -38,6 +41,7 @@ object RuntimeInspector {
             if (initialized) return
             appContext = context.applicationContext
             config = initialConfig
+            session = SessionContextFactory.create(appContext)
             val notifier =
                 if (initialConfig.notifyOnRisk) RiskNotifier(appContext) else null
             timeline = Timeline(
@@ -60,6 +64,14 @@ object RuntimeInspector {
             }
         }
         Log.i(TAG, "Initialized. enabled=${config.enabled}")
+        // Printed so a lab run can be tied to a build from logcat alone, before any findings
+        // have been written anywhere.
+        Log.i(
+            TAG,
+            "Session ${session.sessionId} — ${session.appPackage} " +
+                "${session.appVersionName} (${session.appVersionCode}), " +
+                "lib ${session.libraryVersion}, ${session.deviceModel} API ${session.androidSdkInt}",
+        )
      }
 
 

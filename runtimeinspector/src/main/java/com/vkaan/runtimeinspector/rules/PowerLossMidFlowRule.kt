@@ -17,7 +17,7 @@ internal object PowerLossMidFlowRule : RiskRule {
         if (event.signal != Signal.BATTERY_LOW && event.signal != Signal.SHUTDOWN) return null
         if (after.backStackDepths.values.none { it > 0 }) return null
 
-        val screen = after.foregroundScreen ?: "app"
+        val screen = after.foregroundScreen
         val shuttingDown = event.signal == Signal.SHUTDOWN
 
         return Risk(
@@ -29,7 +29,8 @@ internal object PowerLossMidFlowRule : RiskRule {
             } else {
                 "Battery is low while a flow is open — the terminal may die mid-transaction."
             },
-            subject = screen,
+            subject = screen?.name ?: "app",
+            instanceId = screen?.instanceId,
             seq = event.seq,
             timestampMillis = event.timestampMillis,
         )

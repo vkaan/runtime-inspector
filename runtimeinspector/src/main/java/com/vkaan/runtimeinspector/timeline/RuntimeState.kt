@@ -40,12 +40,12 @@ internal data class RuntimeState(
     data class DestroyHeapSample(val usedBytes: Long, val liveActivities: Int)
 
 
-    val foregroundScreen: String?
+    val foregroundScreen: Screen?
         get() = when {
             foregroundFragment != null &&
-                foregroundFragmentHostId == foregroundActivity?.instanceId -> foregroundFragment.toString()
+                foregroundFragmentHostId == foregroundActivity?.instanceId -> foregroundFragment
 
-            else -> foregroundActivity?.toString()
+            else -> foregroundActivity
         }
 
 

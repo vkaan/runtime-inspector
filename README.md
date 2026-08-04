@@ -107,7 +107,11 @@ val findings: List<Risk> = RuntimeInspector.risks()
 
 Every rule is a pure function of `(event, state before, state after)` — no clocks, no
 randomness, no rule-local state. The same event sequence always produces the same findings,
-so every rule is unit-testable without a device. Findings are deduplicated per rule + subject.
+so every rule is unit-testable without a device. Findings are counted per rule + subject, where
+the subject is a stable name (an Activity or Fragment class) rather than a particular instance —
+so twenty rotations of the same screen are one finding with `occurrences = 20`, not twenty
+findings. The instance the finding first happened to is kept alongside it in `instanceId` and
+still shows up in the log line as `Subject#instanceId`.
 
 | Rule | Severity | Fires when |
 |---|---|---|

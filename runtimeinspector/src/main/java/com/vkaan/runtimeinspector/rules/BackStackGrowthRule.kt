@@ -26,7 +26,8 @@ internal class BackStackGrowthRule(
             severity = Risk.Severity.WARNING,
             message = "Back stack depth reached $count (ceiling $ceiling) — " +
                 "screens are stacking without being popped.",
-            subject = "$hostName#$hostId",
+            subject = hostName,
+            instanceId = hostId,
             seq = event.seq,
             timestampMillis = event.timestampMillis,
         )

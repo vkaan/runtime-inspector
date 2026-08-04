@@ -17,14 +17,15 @@ internal object ScreenOffMidFlowRule : RiskRule {
         if (!after.appInForeground) return null
         if (after.backStackDepths.values.none { it > 0 }) return null
 
-        val screen = after.foregroundScreen ?: "app"
+        val screen = after.foregroundScreen
 
         return Risk(
             ruleId = id,
             severity = Risk.Severity.WARNING,
             message = "Screen turned off while a flow was open — an idle timeout mid-interaction; " +
                 "the flow will expire and any in-flight request may be reversed.",
-            subject = screen,
+            subject = screen?.name ?: "app",
+            instanceId = screen?.instanceId,
             seq = event.seq,
             timestampMillis = event.timestampMillis,
         )

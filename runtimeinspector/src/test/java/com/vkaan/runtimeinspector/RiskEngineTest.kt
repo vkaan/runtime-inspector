@@ -1,9 +1,11 @@
 package com.vkaan.runtimeinspector
 
+import com.vkaan.runtimeinspector.rules.RecreationMidFlowRule
 import com.vkaan.runtimeinspector.rules.Risk
 import com.vkaan.runtimeinspector.rules.RiskEngine
 import com.vkaan.runtimeinspector.rules.RiskRule
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
+import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.Stage
 import com.vkaan.runtimeinspector.timeline.RuntimeState
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -98,6 +100,36 @@ class RiskEngineTest {
         repeat(5) { i -> fire(engine, seq = 5L + i) }
         assertEquals(2, reported.size)
         assertEquals(10, reported.last().occurrences)
+    }
+
+    // Why subjects carry no instance id: every rotation destroys one Activity instance and
+    // creates another, so an id-bearing subject would file each rotation as its own finding
+    // and `occurrences` could never leave 1. Driven through a real rule, not the fake one.
+    @Test
+    fun `a rule firing on successive instances counts as one repeated finding`() {
+        val engine = RiskEngine(rules = listOf(RecreationMidFlowRule))
+        var state = RuntimeState()
+        var seq = 0L
+
+        // Three rotations of the same screen, each with a fresh instance id.
+        listOf(11, 22, 33).forEach { id ->
+            state = state.reduce(activityEvent(seq = seq++, id = id, stage = Stage.CREATED))
+            state = state.reduce(
+                activityEvent(seq = seq++, id = id, stage = Stage.RESUMED, backStackCount = 1)
+            )
+            val destroyed =
+                activityEvent(seq = seq++, id = id, stage = Stage.DESTROYED, configChange = true)
+            val after = state.reduce(destroyed)
+            engine.onEvent(destroyed, before = state, after = after)
+            state = after
+        }
+
+        val risk = engine.snapshot().single()
+        assertEquals(3, risk.occurrences)
+        assertEquals("TestActivity", risk.subject)
+        // Like `seq` and `timestampMillis`, the instance recorded is the first one seen.
+        assertEquals(11, risk.instanceId)
+        assertEquals("TestActivity#11", risk.label())
     }
 
     @Test

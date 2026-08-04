@@ -19,7 +19,8 @@ internal object InterruptedFlowRule : RiskRule {
             message = "App backgrounded while a navigation flow was open " +
                 "(back stack depth $deepest) — if the process is killed now, " +
                 "pending results and callbacks are lost.",
-            subject = before.foregroundActivity?.toString() ?: "app",
+            subject = before.foregroundActivity?.name ?: "app",
+            instanceId = before.foregroundActivity?.instanceId,
             seq = event.seq,
             timestampMillis = event.timestampMillis,
         )

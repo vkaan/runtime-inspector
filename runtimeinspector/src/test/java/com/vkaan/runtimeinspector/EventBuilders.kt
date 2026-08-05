@@ -1,5 +1,6 @@
 package com.vkaan.runtimeinspector
 
+import com.vkaan.runtimeinspector.cardservice.CardServiceState
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.SourceType
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.Stage
@@ -117,6 +118,21 @@ fun systemEvent(
     timestampMillis = seq,
     elapsedRealtimeNanos = nanos,
     signal = signal,
+)
+
+fun cardServiceEvent(
+    seq: Long,
+    from: CardServiceState,
+    to: CardServiceState,
+    line: String = "test line",
+    nanos: Long = seq,
+) = RuntimeEvent.CardService(
+    seq = seq,
+    timestampMillis = seq,
+    elapsedRealtimeNanos = nanos,
+    from = from,
+    to = to,
+    line = line,
 )
 
 fun mb(n: Int): Long = n * 1024L * 1024L

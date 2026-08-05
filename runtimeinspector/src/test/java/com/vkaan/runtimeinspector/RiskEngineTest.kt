@@ -76,30 +76,13 @@ class RiskEngineTest {
     }
 
     @Test
-    fun `listener is called for a new finding`() {
+    fun `every repeat reaches the listener with its count`() {
         val reported = mutableListOf<Risk>()
         val engine = RiskEngine(rules = listOf(rule), onReport = { reported += it })
 
-        fire(engine, seq = 1)
-
-        assertEquals(1, reported.size)
-        assertEquals("TEST_RULE", reported.single().ruleId)
-        assertEquals("screenA", reported.single().subject)
-    }
-
-    @Test
-    fun `repeats reach the listener only at milestones`() {
-        val reported = mutableListOf<Risk>()
-        val engine = RiskEngine(rules = listOf(rule), onReport = { reported += it })
-
-        // Occurrences 1..5: only the very first is reportable.
         repeat(5) { i -> fire(engine, seq = i.toLong()) }
-        assertEquals(1, reported.size)
 
-        // Occurrences 6..10: the 10th is a milestone, so exactly one more arrives.
-        repeat(5) { i -> fire(engine, seq = 5L + i) }
-        assertEquals(2, reported.size)
-        assertEquals(10, reported.last().occurrences)
+        assertEquals(listOf(1, 2, 3, 4, 5), reported.map { it.occurrences })
     }
 
     // Why subjects carry no instance id: every rotation destroys one Activity instance and

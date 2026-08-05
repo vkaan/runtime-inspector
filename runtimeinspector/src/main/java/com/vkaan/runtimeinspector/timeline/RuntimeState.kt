@@ -1,5 +1,6 @@
 package com.vkaan.runtimeinspector.timeline
 
+import com.vkaan.runtimeinspector.cardservice.CardServiceState
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.SourceType
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.Stage
 
@@ -31,6 +32,8 @@ internal data class RuntimeState(
     val networkAvailable: Boolean? = null,
     /** elapsedRealtimeNanos of recent network losses, oldest first. NETWORK_FLAPPING reads this. */
     val recentNetworkLossNanos: List<Long> = emptyList(),
+    val cardServiceState: CardServiceState = CardServiceState.IDLE,
+    val cardServiceSinceNanos: Long = 0L,
 ) {
 
     data class Screen(val name: String, val instanceId: Int) {
@@ -54,6 +57,9 @@ internal data class RuntimeState(
 
     val liveActivities: Int get() = liveActivityIds.size
     val liveFragments: Int get() = liveFragmentIds.size
+
+    val cardTransactionOpen: Boolean
+        get() = cardServiceState != CardServiceState.IDLE && !cardServiceState.isTerminal
 
     fun reduce(event: RuntimeEvent): RuntimeState = when (event) {
         is RuntimeEvent.Process -> copy(
@@ -89,6 +95,11 @@ internal data class RuntimeState(
 
         // Rules read these off the event itself; no state field has a reader yet.
         is RuntimeEvent.SystemSignal -> this
+
+        is RuntimeEvent.CardService -> copy(
+            cardServiceState = event.to,
+            cardServiceSinceNanos = event.elapsedRealtimeNanos,
+        )
 
         is RuntimeEvent.MemoryUsage -> {
             val sampled = copy(

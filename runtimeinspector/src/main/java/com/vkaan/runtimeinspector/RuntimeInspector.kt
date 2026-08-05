@@ -3,6 +3,8 @@ package com.vkaan.runtimeinspector
 import android.content.Context
 import android.util.Log
 import android.app.Application
+import com.vkaan.runtimeinspector.cardservice.CardServiceLogPattern
+import com.vkaan.runtimeinspector.collector.CardServiceLogCollector
 import com.vkaan.runtimeinspector.collector.Collector
 import com.vkaan.runtimeinspector.collector.ComponentCallbacksCollector
 import com.vkaan.runtimeinspector.collector.ConnectivityCollector
@@ -82,7 +84,21 @@ object RuntimeInspector {
         collectors += ConnectivityCollector(timeline)
         collectors += CrashCollector(timeline)
         collectors += SystemBroadcastCollector(timeline)
+        addCardServiceCollector()
         collectors.forEach { it.start(app) }
+    }
+
+    private fun addCardServiceCollector() {
+        if (!config.cardServiceEnabled) return
+        if (config.cardServiceTags.isEmpty() || config.cardServicePatterns.isEmpty()) {
+            Log.w(TAG, "Card service tracking is on but tags or patterns are empty — skipped.")
+            return
+        }
+        collectors += CardServiceLogCollector(
+            timeline = timeline,
+            tags = config.cardServiceTags,
+            patterns = config.cardServicePatterns,
+        )
     }
     val isInitialized: Boolean get() = initialized
 
@@ -100,5 +116,8 @@ object RuntimeInspector {
         /** NETWORK_FLAPPING: this many losses within the window below. Must be ≤ 10 (state cap). */
         val networkFlapCount: Int = 3,
         val networkFlapWindowSeconds: Int = 60,
+        val cardServiceEnabled: Boolean = false,
+        val cardServiceTags: List<String> = emptyList(),
+        val cardServicePatterns: List<CardServiceLogPattern> = emptyList(),
     )
 }

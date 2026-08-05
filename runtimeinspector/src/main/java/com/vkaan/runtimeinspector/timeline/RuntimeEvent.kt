@@ -1,6 +1,7 @@
 package com.vkaan.runtimeinspector.timeline
 
 import android.content.ComponentCallbacks2
+import com.vkaan.runtimeinspector.cardservice.CardServiceState
 import java.util.Locale
 
 sealed interface RuntimeEvent {
@@ -185,6 +186,18 @@ sealed interface RuntimeEvent {
 
         override fun logLine(): String =
             "HEAP used=${usedBytes.toMb()} max=${maxBytes.toMb()} ($usedPercent%) on ${trigger.name}"
+    }
+
+
+    data class CardService(
+        override val seq: Long,
+        override val timestampMillis: Long,
+        override val elapsedRealtimeNanos: Long,
+        val from: CardServiceState,
+        val to: CardServiceState,
+        val line: String,
+    ) : RuntimeEvent {
+        override fun logLine(): String = "CARD ${from.name} -> ${to.name}"
     }
 }
 

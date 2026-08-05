@@ -237,5 +237,5 @@ Output: `runtimeinspector/build/outputs/aar/runtimeinspector-release.aar`
   - [x] FR-08 — Runtime state derived from the timeline
 - [x] Step 4 — Rules / anomaly detection layer
   - [x] FR-09 — Deterministic rules run through a Risk Engine
-  - [x] FR-10 — At least 5 risk rules (13 shipped)
+  - [x] FR-10 — At least 5 risk rules (14 shipped)
   - [x] FR-11 — Warnings produced on risk (logcat + `risks()`)

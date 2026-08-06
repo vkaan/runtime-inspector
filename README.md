@@ -5,7 +5,8 @@ Android's official lifecycle and callback APIs, records everything on a single o
 timeline, derives a live view of the app's runtime state from it, and runs deterministic
 risk rules over every event.
 
-No bytecode instrumentation, no reflection — only official callback mechanisms.
+No bytecode instrumentation, no reflection — only official callback mechanisms, plus one
+opt-in reader that consumes another app's logcat output through a documented permission.
 
 ## Features
 
@@ -25,6 +26,11 @@ No bytecode instrumentation, no reflection — only official callback mechanisms
   chaining (never replacing) the existing exception handler.
 - **Configuration changes** — decoded into the fields that actually changed
   (`ORIENTATION`, `UI_MODE`, `LOCALE`, …) rather than a bare boolean.
+- **Device signals** — screen on/off, battery low/okay and shutdown, received as system
+  broadcasts; on a terminal these are business events, not housekeeping.
+- **Card service state** (opt-in) — a separate app's transaction state, tracked by reading
+  its logcat lines against configured patterns, so an interruption in the host app can be
+  correlated with an open transaction in another process.
 - **Runtime timeline** — one ordered, bounded, thread-safe log of all of the above.
 - **Runtime state** — a live summary derived from the timeline.
 - **Risk Engine** — deterministic rules evaluated on every event, with severity levels,
@@ -128,13 +134,15 @@ still shows up in the log line as `Subject#instanceId`.
 | `INTERRUPTED_FLOW` | INFO | the app is backgrounded while a back stack is non-empty |
 | `SCREEN_OFF_MID_FLOW` | WARNING | the screen turns off while foregrounded with a flow open — idle timeout mid-interaction |
 | `POWER_LOSS_MID_FLOW` | ERROR / WARNING | the device shuts down (ERROR) or reports low battery (WARNING) while a flow is open |
+| `TRANSACTION_INTERRUPTED` | ERROR / WARNING | a crash (ERROR), screen-off or Activity recreation (WARNING) lands while the card service has a transaction open |
 
 ### Runtime state
 
 Every event is folded into a `RuntimeState` as it arrives: foreground status, the current
 screen, back stack depth per Activity, per-Activity lifecycle stages, live instance maps and
 peaks, last heap sample plus a short destroy-time history, network availability, the last
-memory trim level, and the fields of the last configuration change.
+memory trim level, the fields of the last configuration change, and the card service's
+current state with the time it was entered.
 
 `RuntimeState` itself stays `internal`; the rules are its consumer, and `risks()` is the
 public window over what they conclude.
@@ -151,12 +159,49 @@ RuntimeInspector.init(
         heapPercentCeiling = 85,  // MEMORY_PRESSURE heap threshold (%)
         networkFlapCount = 3,     // NETWORK_FLAPPING: losses within the window (max 10)
         networkFlapWindowSeconds = 60,
+        cardServiceEnabled = false,          // opt-in; see Card service tracking
+        cardServiceTags = emptyList(),       // logcat tags the card service writes under
+        cardServicePatterns = emptyList(),   // line pattern -> state
     ),
 )
 ```
 
 Rule thresholds are per-host settings — different apps have legitimately different
 navigation depths and memory profiles.
+
+### Card service tracking
+
+Off by default. When enabled, the library runs `logcat` filtered to the configured tags,
+matches each line against the configured patterns, and holds the resulting
+`CardServiceState` on the timeline alongside the host app's own events. That is what lets
+`TRANSACTION_INTERRUPTED` compare a screen-off in this process against an open transaction
+in another one.
+
+```kotlin
+RuntimeInspector.Config(
+    cardServiceEnabled = true,
+    cardServiceTags = listOf("CARDSVC"),
+    cardServicePatterns = listOf(
+        CardServiceLogPattern(Regex("waiting for card"), CardServiceState.WAITING_CARD),
+        CardServiceLogPattern(Regex("card read"), CardServiceState.CARD_READ),
+        CardServiceLogPattern(Regex("going online"), CardServiceState.ONLINE),
+        CardServiceLogPattern(Regex("approved"), CardServiceState.APPROVED),
+        CardServiceLogPattern(Regex("declined"), CardServiceState.DECLINED),
+    ),
+)
+```
+
+Patterns are configuration rather than code so that a card service's real wording can be
+dropped in without touching the library. Matching is a substring search, first match wins,
+so order patterns from most specific to least.
+
+Enabling it with empty tags or patterns logs a warning and skips the collector.
+
+> **The library never declares `READ_LOGS`.** The host app must declare it and have it
+> granted (`adb shell pm grant <pkg> android.permission.READ_LOGS` on a bench). Without the
+> permission the reader sees only the host's own lines, matches nothing, and stays silent.
+> On Android releases newer than the API 24–28 target fleet, a system consent dialog must
+> also be accepted — it offers one-time access only, so it recurs on every app start.
 
 ### Notifications
 
@@ -202,12 +247,23 @@ com/vkaan/runtimeinspector/
 │   ├── ComponentCallbacksCollector.kt
 │   ├── ConnectivityCollector.kt
 │   ├── CrashCollector.kt
+│   ├── SystemBroadcastCollector.kt
+│   ├── CardServiceLogCollector.kt
 │   └── HeapSampler.kt
+├── cardservice/
+│   ├── CardServiceState.kt      public state enum
+│   └── CardServiceLogState.kt   public pattern type + internal tracker
 ├── rules/
 │   ├── Risk.kt                  public finding type
 │   ├── RiskRule.kt
 │   ├── RiskEngine.kt
 │   └── <one file per rule>
+├── report/
+│   ├── SessionContext.kt
+│   ├── SessionContextFactory.kt
+│   ├── FindingRecord.kt
+│   ├── Json.kt
+│   └── RiskNotifier.kt
 └── timeline/
     ├── RuntimeEvent.kt
     ├── Timeline.kt
@@ -215,8 +271,9 @@ com/vkaan/runtimeinspector/
 ```
 
 `RuntimeInspector` is the intended public surface — `init()`, `isInitialized`, `risks()`,
-`Config` — plus `Risk`, the finding type it returns. `Timeline`, `RuntimeState`, the rules
-and the collectors are `internal`.
+`Config` — plus `Risk`, the finding type it returns, and `CardServiceState` /
+`CardServiceLogPattern`, which a host needs in order to configure card service tracking.
+`Timeline`, `RuntimeState`, the rules, the collectors and the log tracker are `internal`.
 
 ## Building
 

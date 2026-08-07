@@ -59,7 +59,7 @@ internal data class RuntimeState(
     val liveFragments: Int get() = liveFragmentIds.size
 
     val cardTransactionOpen: Boolean
-        get() = cardServiceState != CardServiceState.IDLE && !cardServiceState.isTerminal
+        get() = cardServiceState.requiresCompletion
 
     fun reduce(event: RuntimeEvent): RuntimeState = when (event) {
         is RuntimeEvent.Process -> copy(

@@ -14,7 +14,7 @@ class TransactionInterruptedRuleTest {
 
     private val rule = TransactionInterruptedRule
 
-    private fun openTransaction(to: CardServiceState = CardServiceState.ONLINE): RuntimeState =
+    private fun openTransaction(to: CardServiceState = CardServiceState.CONTINUE_EMV): RuntimeState =
         RuntimeState().reduce(cardServiceEvent(seq = 0, from = CardServiceState.IDLE, to = to))
 
     @Test
@@ -25,18 +25,18 @@ class TransactionInterruptedRuleTest {
         val risk = rule.evaluate(event, before = state, after = state.reduce(event))
 
         assertEquals(Risk.Severity.WARNING, risk?.severity)
-        assertEquals("ONLINE:screen-off", risk?.subject)
+        assertEquals("CONTINUE_EMV:screen-off", risk?.subject)
     }
 
     @Test
     fun `a crash mid-transaction is an error, not a warning`() {
-        val state = openTransaction(CardServiceState.CARD_READ)
+        val state = openTransaction(CardServiceState.FULL_EMV)
         val event = crashEvent(seq = 1)
 
         val risk = rule.evaluate(event, before = state, after = state.reduce(event))
 
         assertEquals(Risk.Severity.ERROR, risk?.severity)
-        assertEquals("CARD_READ:crash", risk?.subject)
+        assertEquals("FULL_EMV:crash", risk?.subject)
     }
 
     @Test
@@ -46,14 +46,18 @@ class TransactionInterruptedRuleTest {
 
         val risk = rule.evaluate(event, before = state, after = state.reduce(event))
 
-        assertEquals("ONLINE:recreation", risk?.subject)
+        assertEquals("CONTINUE_EMV:recreation", risk?.subject)
     }
 
     @Test
     fun `stays silent when the transaction has already finished`() {
         var state = openTransaction()
         state = state.reduce(
-            cardServiceEvent(seq = 1, from = CardServiceState.ONLINE, to = CardServiceState.APPROVED)
+            cardServiceEvent(
+                seq = 1,
+                from = CardServiceState.CONTINUE_EMV,
+                to = CardServiceState.COMPLETED,
+            )
         )
         val event = systemEvent(seq = 2, signal = Signal.SCREEN_OFF)
 

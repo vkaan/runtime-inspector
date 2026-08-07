@@ -13,12 +13,29 @@ import org.junit.Test
 class CardServiceLogStateTest {
 
     private val patterns = listOf(
-        CardServiceLogPattern(Regex("waiting for card"), CardServiceState.WAITING_CARD),
-        CardServiceLogPattern(Regex("card read"), CardServiceState.CARD_READ),
-        CardServiceLogPattern(Regex("going online"), CardServiceState.ONLINE),
-        CardServiceLogPattern(Regex("approved"), CardServiceState.APPROVED),
-        CardServiceLogPattern(Regex("declined"), CardServiceState.DECLINED),
+        CardServiceLogPattern(
+            Regex("""getCard called with config:.*"emvProcessType"\s*:\s*1\b"""),
+            CardServiceState.READ_CARD,
+        ),
+        CardServiceLogPattern(
+            Regex("""getCard called with config:.*"emvProcessType"\s*:\s*2\b"""),
+            CardServiceState.CONTINUE_EMV,
+        ),
+        CardServiceLogPattern(
+            Regex("""getCard called with config:.*"emvProcessType"\s*:\s*3\b"""),
+            CardServiceState.FULL_EMV,
+        ),
+        CardServiceLogPattern(
+            Regex("completeEmv", RegexOption.IGNORE_CASE),
+            CardServiceState.COMPLETED,
+        ),
     )
+
+    private val readCardLine =
+        """getCard called with config: {"forceOnline":1,"emvProcessType":1,"keyIn":1}"""
+
+    private val continueEmvLine =
+        """getCard called with config: {"emvProcessType":2,"forceOnline":1,"keyIn":1}"""
 
     private fun tracker() = CardServiceLogState(patterns)
 
@@ -28,48 +45,71 @@ class CardServiceLogStateTest {
     fun `a matching line moves the state and reports the transition`() {
         val tracker = tracker()
 
-        val transition = tracker.onLine("waiting for card", secs(1))
+        val transition = tracker.onLine(readCardLine, secs(1))
 
         assertEquals(CardServiceState.IDLE, transition?.from)
-        assertEquals(CardServiceState.WAITING_CARD, transition?.to)
-        assertEquals(CardServiceState.WAITING_CARD, tracker.state)
+        assertEquals(CardServiceState.READ_CARD, transition?.to)
+        assertEquals(CardServiceState.READ_CARD, tracker.state)
         assertEquals(secs(1), tracker.sinceNanos)
+    }
+
+    @Test
+    fun `emvProcessType picks the state out of the config blob`() {
+        val tracker = tracker()
+        tracker.onLine(readCardLine, secs(1))
+
+        val transition = tracker.onLine(continueEmvLine, secs(2))
+
+        assertEquals(CardServiceState.CONTINUE_EMV, transition?.to)
+    }
+
+    @Test
+    fun `completeEmvTxn closes the transaction whatever its casing`() {
+        val tracker = tracker()
+        tracker.onLine(continueEmvLine, secs(1))
+
+        val transition = tracker.onLine("completeEMVTxn", secs(2))
+
+        assertEquals(CardServiceState.COMPLETED, transition?.to)
     }
 
     @Test
     fun `a line matching nothing leaves the state alone`() {
         val tracker = tracker()
-        tracker.onLine("waiting for card", secs(1))
+        tracker.onLine(readCardLine, secs(1))
 
         val transition = tracker.onLine("battery level 82", secs(2))
 
         assertNull(transition)
-        assertEquals(CardServiceState.WAITING_CARD, tracker.state)
+        assertEquals(CardServiceState.READ_CARD, tracker.state)
         assertEquals(secs(1), tracker.sinceNanos)
     }
 
     @Test
     fun `repeating the current state does not re-fire and keeps the entry time`() {
         val tracker = tracker()
-        tracker.onLine("waiting for card", secs(1))
+        tracker.onLine(readCardLine, secs(1))
 
-        val transition = tracker.onLine("still waiting for card", secs(4))
+        val transition = tracker.onLine(
+            """getCard called with config: {"emvProcessType":1,"zeroAmount":0}""",
+            secs(4),
+        )
 
         assertNull(transition)
         assertEquals(secs(1), tracker.sinceNanos)
-        assertEquals("waiting for card", tracker.lastLine)
+        assertEquals(readCardLine, tracker.lastLine)
     }
 
     @Test
     fun `the first matching pattern wins`() {
         val ambiguous = listOf(
-            CardServiceLogPattern(Regex("card"), CardServiceState.WAITING_CARD),
-            CardServiceLogPattern(Regex("card read"), CardServiceState.CARD_READ),
+            CardServiceLogPattern(Regex("getCard"), CardServiceState.READ_CARD),
+            CardServiceLogPattern(Regex("""emvProcessType"\s*:\s*2"""), CardServiceState.CONTINUE_EMV),
         )
 
-        val transition = CardServiceLogState(ambiguous).onLine("card read ok", secs(1))
+        val transition = CardServiceLogState(ambiguous).onLine(continueEmvLine, secs(1))
 
-        assertEquals(CardServiceState.WAITING_CARD, transition?.to)
+        assertEquals(CardServiceState.READ_CARD, transition?.to)
     }
 
     @Test
@@ -77,32 +117,45 @@ class CardServiceLogStateTest {
         val event = cardServiceEvent(
             seq = 0,
             from = CardServiceState.IDLE,
-            to = CardServiceState.ONLINE,
+            to = CardServiceState.CONTINUE_EMV,
             nanos = secs(3),
         )
 
         val state = RuntimeState().reduce(event)
 
-        assertEquals(CardServiceState.ONLINE, state.cardServiceState)
+        assertEquals(CardServiceState.CONTINUE_EMV, state.cardServiceState)
         assertEquals(secs(3), state.cardServiceSinceNanos)
         assertTrue(state.cardTransactionOpen)
     }
 
     @Test
-    fun `a transaction is only open between the start and the result`() {
+    fun `a card read on its own is not an open transaction`() {
+        val state = RuntimeState().reduce(
+            cardServiceEvent(seq = 0, from = CardServiceState.IDLE, to = CardServiceState.READ_CARD)
+        )
+
+        assertFalse(state.cardTransactionOpen)
+    }
+
+    @Test
+    fun `a transaction is only open until completeEmvTxn arrives`() {
         var state = RuntimeState()
         assertFalse(state.cardTransactionOpen)
 
         state = state.reduce(
-            cardServiceEvent(seq = 0, from = CardServiceState.IDLE, to = CardServiceState.CARD_READ)
+            cardServiceEvent(
+                seq = 0,
+                from = CardServiceState.READ_CARD,
+                to = CardServiceState.CONTINUE_EMV,
+            )
         )
         assertTrue(state.cardTransactionOpen)
 
         state = state.reduce(
             cardServiceEvent(
                 seq = 1,
-                from = CardServiceState.CARD_READ,
-                to = CardServiceState.DECLINED,
+                from = CardServiceState.CONTINUE_EMV,
+                to = CardServiceState.COMPLETED,
             )
         )
         assertFalse(state.cardTransactionOpen)

@@ -1,5 +1,6 @@
 package com.vkaan.runtimeinspector.timeline
 
+import com.vkaan.runtimeinspector.cardservice.CardServiceApi
 import com.vkaan.runtimeinspector.cardservice.CardServiceState
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.SourceType
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.Stage
@@ -34,6 +35,8 @@ internal data class RuntimeState(
     val recentNetworkLossNanos: List<Long> = emptyList(),
     val cardServiceState: CardServiceState = CardServiceState.IDLE,
     val cardServiceSinceNanos: Long = 0L,
+    val cardServiceBound: Boolean = false,
+    val emvConfigured: Boolean = false,
 ) {
 
     data class Screen(val name: String, val instanceId: Int) {
@@ -98,7 +101,10 @@ internal data class RuntimeState(
 
         is RuntimeEvent.CardService -> copy(
             cardServiceState = event.to,
-            cardServiceSinceNanos = event.elapsedRealtimeNanos,
+            cardServiceSinceNanos =
+                if (event.to != event.from) event.elapsedRealtimeNanos else cardServiceSinceNanos,
+            cardServiceBound = cardServiceBound || CardServiceApi.BIND in event.apis,
+            emvConfigured = emvConfigured || CardServiceApi.SET_EMV_CONFIG in event.apis,
         )
 
         is RuntimeEvent.MemoryUsage -> {

@@ -1,5 +1,6 @@
 package com.vkaan.runtimeinspector
 
+import com.vkaan.runtimeinspector.cardservice.CardServiceApi
 import com.vkaan.runtimeinspector.cardservice.CardServiceLogPattern
 import com.vkaan.runtimeinspector.cardservice.CardServiceLogState
 import com.vkaan.runtimeinspector.cardservice.CardServiceState
@@ -15,19 +16,31 @@ class CardServiceLogStateTest {
     private val patterns = listOf(
         CardServiceLogPattern(
             Regex("""getCard called with config:.*"emvProcessType"\s*:\s*1\b"""),
+            CardServiceApi.GET_CARD,
             CardServiceState.READ_CARD,
         ),
         CardServiceLogPattern(
             Regex("""getCard called with config:.*"emvProcessType"\s*:\s*2\b"""),
+            CardServiceApi.GET_CARD,
             CardServiceState.CONTINUE_EMV,
         ),
         CardServiceLogPattern(
             Regex("""getCard called with config:.*"emvProcessType"\s*:\s*3\b"""),
+            CardServiceApi.GET_CARD,
             CardServiceState.FULL_EMV,
         ),
         CardServiceLogPattern(
+            Regex("getOnlinePIN"),
+            CardServiceApi.GET_ONLINE_PIN,
+        ),
+        CardServiceLogPattern(
             Regex("completeEmv", RegexOption.IGNORE_CASE),
+            CardServiceApi.COMPLETE_EMV,
             CardServiceState.COMPLETED,
+        ),
+        CardServiceLogPattern(
+            Regex("A client is bound"),
+            CardServiceApi.BIND,
         ),
     )
 
@@ -86,30 +99,43 @@ class CardServiceLogStateTest {
     }
 
     @Test
-    fun `repeating the current state does not re-fire and keeps the entry time`() {
+    fun `a repeated call is still reported but keeps the entry time`() {
         val tracker = tracker()
         tracker.onLine(readCardLine, secs(1))
+        val repeated = """getCard called with config: {"emvProcessType":1,"zeroAmount":0}"""
 
-        val transition = tracker.onLine(
-            """getCard called with config: {"emvProcessType":1,"zeroAmount":0}""",
-            secs(4),
-        )
+        val match = tracker.onLine(repeated, secs(4))
 
-        assertNull(transition)
+        assertEquals(listOf(CardServiceApi.GET_CARD), match?.apis)
+        assertEquals(CardServiceState.READ_CARD, match?.from)
+        assertEquals(CardServiceState.READ_CARD, match?.to)
         assertEquals(secs(1), tracker.sinceNanos)
-        assertEquals(readCardLine, tracker.lastLine)
+        assertEquals(repeated, tracker.lastLine)
     }
 
     @Test
-    fun `the first matching pattern wins`() {
-        val ambiguous = listOf(
-            CardServiceLogPattern(Regex("getCard"), CardServiceState.READ_CARD),
-            CardServiceLogPattern(Regex("""emvProcessType"\s*:\s*2"""), CardServiceState.CONTINUE_EMV),
+    fun `a line carrying two APIs reports both`() {
+        val line =
+            """getCard called with config: {"emvProcessType":2,"getOnlinePIN":1}"""
+
+        val match = tracker().onLine(line, secs(1))
+
+        assertEquals(
+            listOf(CardServiceApi.GET_CARD, CardServiceApi.GET_ONLINE_PIN),
+            match?.apis,
         )
+        assertEquals(CardServiceState.CONTINUE_EMV, match?.to)
+    }
 
-        val transition = CardServiceLogState(ambiguous).onLine(continueEmvLine, secs(1))
+    @Test
+    fun `a matched line with no state leaves the state alone`() {
+        val tracker = tracker()
 
-        assertEquals(CardServiceState.READ_CARD, transition?.to)
+        val match = tracker.onLine("A client is bound", secs(1))
+
+        assertEquals(listOf(CardServiceApi.BIND), match?.apis)
+        assertEquals(CardServiceState.IDLE, tracker.state)
+        assertEquals(0L, tracker.sinceNanos)
     }
 
     @Test

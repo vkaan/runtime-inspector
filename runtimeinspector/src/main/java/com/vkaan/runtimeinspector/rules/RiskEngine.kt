@@ -38,6 +38,12 @@ internal class RiskEngine(
                     ScreenOffMidFlowRule,
                     PowerLossMidFlowRule,
                     TransactionInterruptedRule,
+                    CardServiceCallBeforeBindRule,
+                    CardServiceCallAfterStopRule,
+                    EmvClConfigOrderRule,
+                    OnlinePinAfterCompleteRule,
+                    IccTakenOutEarlyRule,
+                    TransactionAbandonedRule,
                 ),
                 onReport = onReport,
             )

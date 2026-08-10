@@ -1,5 +1,6 @@
 package com.vkaan.runtimeinspector
 
+import com.vkaan.runtimeinspector.cardservice.CardServiceApi
 import com.vkaan.runtimeinspector.cardservice.CardServiceState
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.SourceType
@@ -124,6 +125,7 @@ fun cardServiceEvent(
     seq: Long,
     from: CardServiceState,
     to: CardServiceState,
+    apis: List<CardServiceApi> = emptyList(),
     line: String = "test line",
     nanos: Long = seq,
 ) = RuntimeEvent.CardService(
@@ -132,6 +134,24 @@ fun cardServiceEvent(
     elapsedRealtimeNanos = nanos,
     from = from,
     to = to,
+    apis = apis,
+    line = line,
+)
+
+fun cardServiceCall(
+    seq: Long,
+    apis: List<CardServiceApi>,
+    state: CardServiceState = CardServiceState.IDLE,
+    to: CardServiceState = state,
+    line: String = "test line",
+    nanos: Long = seq,
+) = RuntimeEvent.CardService(
+    seq = seq,
+    timestampMillis = seq,
+    elapsedRealtimeNanos = nanos,
+    from = state,
+    to = to,
+    apis = apis,
     line = line,
 )
 

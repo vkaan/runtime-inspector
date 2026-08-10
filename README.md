@@ -135,6 +135,12 @@ still shows up in the log line as `Subject#instanceId`.
 | `SCREEN_OFF_MID_FLOW` | WARNING | the screen turns off while foregrounded with a flow open — idle timeout mid-interaction |
 | `POWER_LOSS_MID_FLOW` | ERROR / WARNING | the device shuts down (ERROR) or reports low battery (WARNING) while a flow is open |
 | `TRANSACTION_INTERRUPTED` | ERROR / WARNING | a crash (ERROR), screen-off or Activity recreation (WARNING) lands while the card service has a transaction open |
+| `CARD_SERVICE_CALL_BEFORE_BIND` | ERROR | a card service API is called before the service reports a bound client |
+| `CARD_SERVICE_CALL_AFTER_STOP` | ERROR | a card service API is called while the host Activity is paused, stopped or destroyed |
+| `EMV_CL_CONFIG_BEFORE_CONFIG` | ERROR | `setEMVCLConfiguration` is called before `setEMVConfiguration` |
+| `ONLINE_PIN_AFTER_COMPLETE` | ERROR | an online PIN is requested after `completeEmvTxn` |
+| `ICC_TAKEN_OUT_EARLY` | ERROR | `takeOutICC` is called while an EMV transaction still needs completing |
+| `TRANSACTION_ABANDONED` | ERROR | a new card read starts while the previous transaction still needs completing |
 
 ### Runtime state
 
@@ -172,28 +178,46 @@ navigation depths and memory profiles.
 ### Card service tracking
 
 Off by default. When enabled, the library runs `logcat` filtered to the configured tags,
-matches each line against the configured patterns, and holds the resulting
-`CardServiceState` on the timeline alongside the host app's own events. That is what lets
-`TRANSACTION_INTERRUPTED` compare a screen-off in this process against an open transaction
-in another one.
+matches each line against the configured patterns, and puts the result on the timeline
+alongside the host app's own events. A pattern names the `CardServiceApi` the line stands
+for and, when the line also moves the transaction on, the `CardServiceState` it moves to.
+That is what lets `TRANSACTION_INTERRUPTED` compare a screen-off in this process against an
+open transaction in another one, and what the five call-ordering rules read.
 
 ```kotlin
 RuntimeInspector.Config(
     cardServiceEnabled = true,
-    cardServiceTags = listOf("CARDSVC"),
+    cardServiceTags = listOf("com.tokeninc.cardservice"),
     cardServicePatterns = listOf(
-        CardServiceLogPattern(Regex("waiting for card"), CardServiceState.WAITING_CARD),
-        CardServiceLogPattern(Regex("card read"), CardServiceState.CARD_READ),
-        CardServiceLogPattern(Regex("going online"), CardServiceState.ONLINE),
-        CardServiceLogPattern(Regex("approved"), CardServiceState.APPROVED),
-        CardServiceLogPattern(Regex("declined"), CardServiceState.DECLINED),
+        CardServiceLogPattern(
+            Regex("""getCard called with config:.*"emvProcessType"\s*:\s*1\b"""),
+            CardServiceApi.GET_CARD,
+            CardServiceState.READ_CARD,
+        ),
+        CardServiceLogPattern(
+            Regex("""getCard called with config:.*"emvProcessType"\s*:\s*2\b"""),
+            CardServiceApi.GET_CARD,
+            CardServiceState.CONTINUE_EMV,
+        ),
+        CardServiceLogPattern(
+            Regex("getOnlinePIN"),
+            CardServiceApi.GET_ONLINE_PIN,
+        ),
+        CardServiceLogPattern(
+            Regex("completeEmv", RegexOption.IGNORE_CASE),
+            CardServiceApi.COMPLETE_EMV,
+            CardServiceState.COMPLETED,
+        ),
+        CardServiceLogPattern(Regex("A client is bound"), CardServiceApi.BIND),
     ),
 )
 ```
 
 Patterns are configuration rather than code so that a card service's real wording can be
-dropped in without touching the library. Matching is a substring search, first match wins,
-so order patterns from most specific to least.
+dropped in without touching the library. Matching is a substring search and every matching
+pattern counts, so one line can stand for more than one API — a `getCard` that also asks
+for an online PIN is both. The transaction state comes from the first matching pattern that
+carries one, so order those from most specific to least.
 
 Enabling it with empty tags or patterns logs a warning and skips the collector.
 
@@ -252,6 +276,7 @@ com/vkaan/runtimeinspector/
 │   └── HeapSampler.kt
 ├── cardservice/
 │   ├── CardServiceState.kt      public state enum
+│   ├── CardServiceApi.kt        public API-name enum
 │   └── CardServiceLogState.kt   public pattern type + internal tracker
 ├── rules/
 │   ├── Risk.kt                  public finding type
@@ -271,8 +296,9 @@ com/vkaan/runtimeinspector/
 ```
 
 `RuntimeInspector` is the intended public surface — `init()`, `isInitialized`, `risks()`,
-`Config` — plus `Risk`, the finding type it returns, and `CardServiceState` /
-`CardServiceLogPattern`, which a host needs in order to configure card service tracking.
+`Config` — plus `Risk`, the finding type it returns, and `CardServiceState`,
+`CardServiceApi` and `CardServiceLogPattern`, which a host needs in order to configure card
+service tracking.
 `Timeline`, `RuntimeState`, the rules, the collectors and the log tracker are `internal`.
 
 ## Building
@@ -282,17 +308,3 @@ com/vkaan/runtimeinspector/
 ```
 
 Output: `runtimeinspector/build/outputs/aar/runtimeinspector-release.aar`
-
-## Progress
-
-- [x] Step 1 — Library module and initialization
-- [x] Step 2 — Collector layer: Activity & Fragment lifecycle events (+ back-stack, per-event instanceId & config-change flag)
-- [x] Step 3 — Runtime timeline & state
-  - [x] FR-05 — Process lifecycle events
-  - [x] FR-06 — Memory & configuration callbacks
-  - [x] FR-07 — Runtime timeline built from collected events
-  - [x] FR-08 — Runtime state derived from the timeline
-- [x] Step 4 — Rules / anomaly detection layer
-  - [x] FR-09 — Deterministic rules run through a Risk Engine
-  - [x] FR-10 — At least 5 risk rules (14 shipped)
-  - [x] FR-11 — Warnings produced on risk (logcat + `risks()`)

@@ -1,6 +1,7 @@
 package com.vkaan.runtimeinspector.timeline
 
 import android.content.ComponentCallbacks2
+import com.vkaan.runtimeinspector.cardservice.CardServiceApi
 import com.vkaan.runtimeinspector.cardservice.CardServiceState
 import java.util.Locale
 
@@ -195,9 +196,11 @@ sealed interface RuntimeEvent {
         override val elapsedRealtimeNanos: Long,
         val from: CardServiceState,
         val to: CardServiceState,
+        val apis: List<CardServiceApi>,
         val line: String,
     ) : RuntimeEvent {
-        override fun logLine(): String = "CARD ${from.name} -> ${to.name}"
+        override fun logLine(): String =
+            "CARD ${apis.joinToString("|") { it.name }} ${from.name} -> ${to.name}"
     }
 }
 

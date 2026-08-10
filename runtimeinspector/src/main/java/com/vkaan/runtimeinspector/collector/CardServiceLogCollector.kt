@@ -47,15 +47,16 @@ internal class CardServiceLogCollector(
 
     private fun onLine(line: String) {
         if (!running) return
-        val transition = tracker.onLine(line, SystemClock.elapsedRealtimeNanos()) ?: return
+        val match = tracker.onLine(line, SystemClock.elapsedRealtimeNanos()) ?: return
         timeline.record { seq ->
             RuntimeEvent.CardService(
                 seq = seq,
                 timestampMillis = System.currentTimeMillis(),
-                elapsedRealtimeNanos = transition.elapsedRealtimeNanos,
-                from = transition.from,
-                to = transition.to,
-                line = transition.line,
+                elapsedRealtimeNanos = match.elapsedRealtimeNanos,
+                from = match.from,
+                to = match.to,
+                apis = match.apis,
+                line = match.line,
             )
         }
     }

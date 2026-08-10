@@ -2,7 +2,8 @@ package com.vkaan.runtimeinspector.cardservice
 
 data class CardServiceLogPattern(
     val regex: Regex,
-    val state: CardServiceState,
+    val api: CardServiceApi,
+    val state: CardServiceState? = null,
 )
 
 internal class CardServiceLogState(
@@ -18,26 +19,32 @@ internal class CardServiceLogState(
     var lastLine: String? = null
         private set
 
-    data class Transition(
+    data class Match(
+        val apis: List<CardServiceApi>,
         val from: CardServiceState,
         val to: CardServiceState,
         val elapsedRealtimeNanos: Long,
         val line: String,
     )
 
-    fun onLine(line: String, elapsedRealtimeNanos: Long): Transition? {
-        val matched = patterns.firstOrNull { it.regex.containsMatchIn(line) } ?: return null
-        if (matched.state == state) return null
+    fun onLine(line: String, elapsedRealtimeNanos: Long): Match? {
+        val matched = patterns.filter { it.regex.containsMatchIn(line) }
+        if (matched.isEmpty()) return null
 
-        val transition = Transition(
-            from = state,
-            to = matched.state,
+        val from = state
+        val to = matched.firstNotNullOfOrNull { it.state } ?: from
+        if (to != from) {
+            state = to
+            sinceNanos = elapsedRealtimeNanos
+        }
+        lastLine = line
+
+        return Match(
+            apis = matched.map { it.api }.distinct(),
+            from = from,
+            to = to,
             elapsedRealtimeNanos = elapsedRealtimeNanos,
             line = line,
         )
-        state = matched.state
-        sinceNanos = elapsedRealtimeNanos
-        lastLine = line
-        return transition
     }
 }

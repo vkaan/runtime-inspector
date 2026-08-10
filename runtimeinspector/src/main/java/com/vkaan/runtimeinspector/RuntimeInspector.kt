@@ -66,8 +66,7 @@ object RuntimeInspector {
             }
         }
         Log.i(TAG, "Initialized. enabled=${config.enabled}")
-        // Printed so a lab run can be tied to a build from logcat alone, before any findings
-        // have been written anywhere.
+        // Printed so a lab run can be tied to a build from logcat alone.
         Log.i(
             TAG,
             "Session ${session.sessionId} — ${session.appPackage} " +

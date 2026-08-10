@@ -1,13 +1,12 @@
 package com.vkaan.runtimeinspector.report
 
 /**
- * Everything a finding needs to be attributable to a specific run of a specific build.
+ * Everything a finding needs to name the run and the build it came from.
  *
- * Deliberately free of Android types so it stays unit-testable; the Android-side builder that
- * fills it from PackageManager and Build lands separately.
+ * Free of Android types so it stays unit-testable; [SessionContextFactory] fills it.
  *
- * @param sessionId identifies one process lifetime — a new one on every cold start.
- * @param appVersionCode the build under test. Without this a finding says nothing about
+ * @param sessionId one process lifetime — a new one on every cold start.
+ * @param appVersionCode the build under test; without it a finding says nothing about
  *   whether a given bank build passes.
  */
 internal data class SessionContext(

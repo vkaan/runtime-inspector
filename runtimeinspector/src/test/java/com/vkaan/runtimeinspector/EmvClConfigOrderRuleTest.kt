@@ -1,7 +1,7 @@
 package com.vkaan.runtimeinspector
 
 import com.vkaan.runtimeinspector.cardservice.CardServiceApi
-import com.vkaan.runtimeinspector.rules.EmvClConfigOrderRule
+import com.vkaan.runtimeinspector.cardservice.rules.EmvClConfigOrderRule
 import com.vkaan.runtimeinspector.rules.Risk
 import com.vkaan.runtimeinspector.timeline.RuntimeState
 import org.junit.Assert.assertEquals

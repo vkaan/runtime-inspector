@@ -1,6 +1,8 @@
-package com.vkaan.runtimeinspector.rules
+package com.vkaan.runtimeinspector.cardservice.rules
 
 import com.vkaan.runtimeinspector.cardservice.CardServiceApi
+import com.vkaan.runtimeinspector.rules.Risk
+import com.vkaan.runtimeinspector.rules.RiskRule
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.Stage
 import com.vkaan.runtimeinspector.timeline.RuntimeState
@@ -29,7 +31,7 @@ internal object CardServiceCallAfterStopRule : RiskRule {
             ruleId = id,
             severity = Risk.Severity.ERROR,
             message = "$called reached the card service while the calling Activity was " +
-                "$stageName — the service rejects calls made after the host is paused.",
+                    "$stageName — the service rejects calls made after the host is paused.",
             subject = "$called:$stageName",
             instanceId = host?.instanceId,
             seq = event.seq,

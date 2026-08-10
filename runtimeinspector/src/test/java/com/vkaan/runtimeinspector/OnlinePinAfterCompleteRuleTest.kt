@@ -2,7 +2,7 @@ package com.vkaan.runtimeinspector
 
 import com.vkaan.runtimeinspector.cardservice.CardServiceApi
 import com.vkaan.runtimeinspector.cardservice.CardServiceState
-import com.vkaan.runtimeinspector.rules.OnlinePinAfterCompleteRule
+import com.vkaan.runtimeinspector.cardservice.rules.OnlinePinAfterCompleteRule
 import com.vkaan.runtimeinspector.rules.Risk
 import com.vkaan.runtimeinspector.timeline.RuntimeState
 import org.junit.Assert.assertEquals

@@ -1,7 +1,7 @@
 package com.vkaan.runtimeinspector
 
 import com.vkaan.runtimeinspector.cardservice.CardServiceApi
-import com.vkaan.runtimeinspector.rules.CardServiceCallBeforeBindRule
+import com.vkaan.runtimeinspector.cardservice.rules.CardServiceCallBeforeBindRule
 import com.vkaan.runtimeinspector.rules.Risk
 import com.vkaan.runtimeinspector.timeline.RuntimeState
 import org.junit.Assert.assertEquals

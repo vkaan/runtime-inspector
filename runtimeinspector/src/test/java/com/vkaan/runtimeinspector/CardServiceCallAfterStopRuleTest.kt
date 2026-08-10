@@ -1,7 +1,7 @@
 package com.vkaan.runtimeinspector
 
 import com.vkaan.runtimeinspector.cardservice.CardServiceApi
-import com.vkaan.runtimeinspector.rules.CardServiceCallAfterStopRule
+import com.vkaan.runtimeinspector.cardservice.rules.CardServiceCallAfterStopRule
 import com.vkaan.runtimeinspector.rules.Risk
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.Stage
 import com.vkaan.runtimeinspector.timeline.RuntimeState

@@ -1,6 +1,8 @@
-package com.vkaan.runtimeinspector.rules
+package com.vkaan.runtimeinspector.cardservice.rules
 
 import com.vkaan.runtimeinspector.cardservice.CardServiceApi
+import com.vkaan.runtimeinspector.rules.Risk
+import com.vkaan.runtimeinspector.rules.RiskRule
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
 import com.vkaan.runtimeinspector.timeline.RuntimeState
 
@@ -18,7 +20,7 @@ internal object CardServiceCallBeforeBindRule : RiskRule {
             ruleId = id,
             severity = Risk.Severity.ERROR,
             message = "${called.name} was called before the card service reported a bound " +
-                "client — the call cannot have reached the service.",
+                    "client — the call cannot have reached the service.",
             subject = called.name,
             seq = event.seq,
             timestampMillis = event.timestampMillis,

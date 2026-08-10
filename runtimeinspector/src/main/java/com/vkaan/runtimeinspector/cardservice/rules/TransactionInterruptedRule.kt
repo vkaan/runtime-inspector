@@ -1,5 +1,7 @@
-package com.vkaan.runtimeinspector.rules
+package com.vkaan.runtimeinspector.cardservice.rules
 
+import com.vkaan.runtimeinspector.rules.Risk
+import com.vkaan.runtimeinspector.rules.RiskRule
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.SourceType
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.Stage
@@ -32,7 +34,7 @@ internal object TransactionInterruptedRule : RiskRule {
             ruleId = id,
             severity = if (cause == "crash") Risk.Severity.ERROR else Risk.Severity.WARNING,
             message = "Card transaction was in ${state.name} when the app hit $cause — the " +
-                "terminal may be committed at the acquirer with no UI left to finish it.",
+                    "terminal may be committed at the acquirer with no UI left to finish it.",
             subject = "${state.name}:$cause",
             instanceId = after.foregroundScreen?.instanceId,
             seq = event.seq,

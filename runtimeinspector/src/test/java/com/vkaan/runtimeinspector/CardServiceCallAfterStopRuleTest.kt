@@ -54,6 +54,27 @@ class CardServiceCallAfterStopRuleTest {
     }
 
     @Test
+    fun `stays silent while the host Activity has not resumed yet`() {
+        val state = hostAt(Stage.CREATED)
+
+        val risk = rule.evaluate(call, before = state, after = state.reduce(call))
+
+        assertNull(risk)
+    }
+
+    @Test
+    fun `stays silent in the gap between one Activity dying and the next resuming`() {
+        var state = hostAt(Stage.CREATED, Stage.RESUMED, Stage.DESTROYED)
+        state = state.reduce(
+            activityEvent(seq = 3, id = 2, name = "PaymentActivity", stage = Stage.CREATED)
+        )
+
+        val risk = rule.evaluate(call, before = state, after = state.reduce(call))
+
+        assertNull(risk)
+    }
+
+    @Test
     fun `stays silent before the app has shown any Activity`() {
         val state = RuntimeState()
 

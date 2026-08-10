@@ -19,10 +19,14 @@ internal object CardServiceCallAfterStopRule : RiskRule {
         val hostStage = host?.let { after.activityStages[it.instanceId] }
 
         val stageName = when {
-            host == null && after.peakLiveActivities == 0 -> return null
-            host == null -> Stage.DESTROYED.name
-            hostStage == null || hostStage == Stage.RESUMED -> return null
-            else -> hostStage.name
+            host != null ->
+                if (hostStage == null || hostStage == Stage.RESUMED) return null
+                else hostStage.name
+
+            // Nothing has resumed: an Activity is still starting up, or none ever ran.
+            after.activityStages.isNotEmpty() -> return null
+            after.peakLiveActivities == 0 -> return null
+            else -> Stage.DESTROYED.name
         }
 
         val called = event.apis.joinToString("|") { it.name }

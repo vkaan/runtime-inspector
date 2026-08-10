@@ -3,15 +3,13 @@ package com.vkaan.runtimeinspector.report
 import com.vkaan.runtimeinspector.rules.Risk
 
 /**
- * One finding, flattened together with its session context into a single self-contained line.
+ * One finding flattened with its session context into a self-contained line.
  *
- * The session fields repeat on every record instead of being written once as a header. That is
- * intentional: findings travel through logcat, which drops lines under load, so a record that
- * depends on an earlier line to be interpretable is a record that can arrive meaningless.
+ * The session fields repeat on every record rather than being written once as a header:
+ * logcat drops lines under load, so a record that needs an earlier line is unreadable.
  *
- * `(sessionId, ruleId, subject)` is the natural primary key — the engine already keeps exactly
- * one [Risk] per rule + subject — so the same record may be written repeatedly as `occurrences`
- * grows and the backend can simply upsert, keeping the highest count.
+ * `(sessionId, ruleId, subject)` is the primary key, so a record can be rewritten as
+ * `occurrences` grows and the backend upserts on the highest count.
  */
 internal data class FindingRecord(
     val session: SessionContext,

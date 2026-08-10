@@ -85,9 +85,8 @@ class RiskEngineTest {
         assertEquals(listOf(1, 2, 3, 4, 5), reported.map { it.occurrences })
     }
 
-    // Why subjects carry no instance id: every rotation destroys one Activity instance and
-    // creates another, so an id-bearing subject would file each rotation as its own finding
-    // and `occurrences` could never leave 1. Driven through a real rule, not the fake one.
+    // Why subjects carry no instance id: every rotation mints a new instance, so an id-bearing
+    // subject would file each rotation separately and `occurrences` could never leave 1.
     @Test
     fun `a rule firing on successive instances counts as one repeated finding`() {
         val engine = RiskEngine(rules = listOf(RecreationMidFlowRule))

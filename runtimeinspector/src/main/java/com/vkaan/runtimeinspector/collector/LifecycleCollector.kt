@@ -60,7 +60,7 @@ internal class LifecycleCollector(
 
     // The callbacks' own `fm` argument is ignored throughout: with recursive registration it is
     // the CHILD FragmentManager for nested fragments, whose back stack is not the host's.
-    // `hostFm` is captured once per Activity and is always the one we want to measure.
+    // `hostFm` is captured once per Activity and is the one we want to measure.
     private fun fragmentCallbacks(hostActivityId: Int, hostFm: FragmentManager) =
         object : FragmentManager.FragmentLifecycleCallbacks() {
             override fun onFragmentAttached(fm: FragmentManager, f: Fragment, ctx: Context) =
@@ -90,11 +90,10 @@ internal class LifecycleCollector(
         hostActivityName: String,
     ) = object : FragmentManager.OnBackStackChangedListener {
 
-        // Fragment 1.4.0+ fires onBackStackChangeCommitted once PER FRAGMENT in the transaction,
-        // so a replace() onto an occupied container reports twice for one navigation. The
-        // FragmentManager dispatches all committed callbacks and then onBackStackChanged() on the
-        // main thread within the same execution, so we buffer the fragments here and flush exactly
-        // one event per transaction when onBackStackChanged() arrives.
+        // Fragment 1.4.0+ fires onBackStackChangeCommitted once PER FRAGMENT, so a replace()
+        // onto an occupied container reports twice for one navigation. All committed callbacks
+        // and then onBackStackChanged() run in the same main-thread execution, so buffer here
+        // and flush one event per transaction when onBackStackChanged() arrives.
         private val pendingFragments = mutableListOf<String>()
         private var pendingPop = false
 

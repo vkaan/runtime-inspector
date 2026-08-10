@@ -9,9 +9,8 @@ import java.util.UUID
 /**
  * Builds the [SessionContext] once per process, at init.
  *
- * Everything here is best-effort: a library that cannot read its host's version number should
- * still collect findings, so every lookup has a fallback and nothing is allowed to throw into
- * the host app's startup path.
+ * Best-effort throughout: every lookup has a fallback and nothing throws into the host's
+ * startup path, because a missing version number must not stop findings being collected.
  */
 internal object SessionContextFactory {
 
@@ -52,9 +51,8 @@ internal object SessionContextFactory {
         else versionCode.toLong()
 
     /**
-     * Joins make and model the way a human would name the terminal: `PAX` + `A920` reads as
-     * "PAX A920", but a model that already carries its maker is left alone rather than becoming
-     * "Google Google Pixel 3".
+     * Joins make and model: `PAX` + `A920` becomes "PAX A920", but a model that already
+     * carries its maker is left alone rather than becoming "Google Google Pixel 3".
      */
     fun deviceName(manufacturer: String?, model: String?): String {
         val make = manufacturer?.trim().orEmpty()

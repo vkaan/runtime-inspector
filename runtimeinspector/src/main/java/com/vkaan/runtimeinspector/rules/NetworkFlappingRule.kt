@@ -4,9 +4,9 @@ import com.vkaan.runtimeinspector.timeline.RuntimeEvent
 import com.vkaan.runtimeinspector.timeline.RuntimeState
 
 /**
- * NETWORK_LOSS reports what a drop does to the app; this rule reports what repeated drops say
- * about the terminal's link. A connection that keeps cycling means a bad SIM, antenna, or
- * coverage — so it fires regardless of foreground state, and its subject is the link itself.
+ * NETWORK_LOSS reports what a drop does to the app; this reports what repeated drops say
+ * about the link. Cycling means a bad SIM, antenna or coverage, so it fires regardless of
+ * foreground state and its subject is the link itself.
  */
 internal class NetworkFlappingRule(
     private val lossCount: Int,

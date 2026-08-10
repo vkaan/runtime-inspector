@@ -17,8 +17,7 @@ internal class SystemBroadcastCollector(
     private var application: Application? = null
 
     // All five actions are system broadcasts: only the OS can send them, no permission is
-    // needed to receive them, and they are exempt from the exported-flag requirement that
-    // newer target SDKs impose on context-registered receivers.
+    // needed, and they are exempt from the exported-flag requirement on newer target SDKs.
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val signal = when (intent?.action) {

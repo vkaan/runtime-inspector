@@ -1,7 +1,9 @@
-package com.vkaan.runtimeinspector.rules
+package com.vkaan.runtimeinspector.cardservice.rules
 
 import com.vkaan.runtimeinspector.cardservice.CardServiceApi
 import com.vkaan.runtimeinspector.cardservice.CardServiceState
+import com.vkaan.runtimeinspector.rules.Risk
+import com.vkaan.runtimeinspector.rules.RiskRule
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
 import com.vkaan.runtimeinspector.timeline.RuntimeState
 
@@ -19,7 +21,7 @@ internal object OnlinePinAfterCompleteRule : RiskRule {
             ruleId = id,
             severity = Risk.Severity.ERROR,
             message = "An online PIN was requested after completeEmvTxn — the transaction is " +
-                "already finalised and the PIN cannot belong to it.",
+                    "already finalised and the PIN cannot belong to it.",
             subject = CardServiceApi.GET_ONLINE_PIN.name,
             seq = event.seq,
             timestampMillis = event.timestampMillis,

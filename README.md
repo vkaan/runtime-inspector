@@ -277,7 +277,9 @@ com/vkaan/runtimeinspector/
 ├── cardservice/
 │   ├── CardServiceState.kt      public state enum
 │   ├── CardServiceApi.kt        public API-name enum
-│   └── CardServiceLogState.kt   public pattern type + internal tracker
+│   ├── CardServiceLogState.kt   public pattern type + internal tracker
+│   └── rules/
+│       └── <one file per card service rule>
 ├── rules/
 │   ├── Risk.kt                  public finding type
 │   ├── RiskRule.kt

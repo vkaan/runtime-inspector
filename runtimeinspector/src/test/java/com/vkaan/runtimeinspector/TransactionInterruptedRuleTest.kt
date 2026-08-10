@@ -2,7 +2,7 @@ package com.vkaan.runtimeinspector
 
 import com.vkaan.runtimeinspector.cardservice.CardServiceState
 import com.vkaan.runtimeinspector.rules.Risk
-import com.vkaan.runtimeinspector.rules.TransactionInterruptedRule
+import com.vkaan.runtimeinspector.cardservice.rules.TransactionInterruptedRule
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.Stage
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.SystemSignal.Signal
 import com.vkaan.runtimeinspector.timeline.RuntimeState

@@ -7,10 +7,10 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.SystemClock
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
-import com.vkaan.runtimeinspector.timeline.Timeline
+import com.vkaan.runtimeinspector.timeline.EventSink
 
 internal class ConnectivityCollector(
-    private val timeline: Timeline,
+    private val timeline: EventSink,
 ) : Collector {
 
     private var connectivityManager: ConnectivityManager? = null

@@ -6,11 +6,11 @@ import android.util.Log
 import com.vkaan.runtimeinspector.cardservice.CardServiceLogPattern
 import com.vkaan.runtimeinspector.cardservice.CardServiceLogState
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
-import com.vkaan.runtimeinspector.timeline.Timeline
+import com.vkaan.runtimeinspector.timeline.EventSink
 import java.io.IOException
 
 internal class CardServiceLogCollector(
-    private val timeline: Timeline,
+    private val timeline: EventSink,
     private val tags: List<String>,
     patterns: List<CardServiceLogPattern>,
     private val logUnmatched: Boolean = false,

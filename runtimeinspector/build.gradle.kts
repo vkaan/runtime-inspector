@@ -1,11 +1,16 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.parcelize)
 }
 
 android {
     namespace = "com.vkaan.runtimeinspector"
     compileSdk = 34
+
+    buildFeatures {
+        aidl = true
+    }
 
     defaultConfig {
         minSdk = 24

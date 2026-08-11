@@ -3,10 +3,10 @@ package com.vkaan.runtimeinspector.collector
 import android.app.Application
 import android.os.SystemClock
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
-import com.vkaan.runtimeinspector.timeline.Timeline
+import com.vkaan.runtimeinspector.timeline.EventSink
 
 internal class CrashCollector(
-    private val timeline: Timeline,
+    private val timeline: EventSink,
 ) : Collector, Thread.UncaughtExceptionHandler {
 
     private var previousHandler: Thread.UncaughtExceptionHandler? = null

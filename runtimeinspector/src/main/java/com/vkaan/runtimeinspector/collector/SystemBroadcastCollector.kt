@@ -8,10 +8,10 @@ import android.content.IntentFilter
 import android.os.SystemClock
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.SystemSignal.Signal
-import com.vkaan.runtimeinspector.timeline.Timeline
+import com.vkaan.runtimeinspector.timeline.EventSink
 
 internal class SystemBroadcastCollector(
-    private val timeline: Timeline,
+    private val timeline: EventSink,
 ) : Collector {
 
     private var application: Application? = null

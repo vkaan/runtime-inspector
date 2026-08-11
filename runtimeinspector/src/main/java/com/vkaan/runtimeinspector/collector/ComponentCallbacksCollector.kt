@@ -6,10 +6,10 @@ import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.os.SystemClock
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
-import com.vkaan.runtimeinspector.timeline.Timeline
+import com.vkaan.runtimeinspector.timeline.EventSink
 
 internal class ComponentCallbacksCollector(
-    private val timeline: Timeline,
+    private val timeline: EventSink,
 ) : Collector, ComponentCallbacks2 {
 
     private val lock = Any()

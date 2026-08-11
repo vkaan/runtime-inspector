@@ -97,6 +97,7 @@ object RuntimeInspector {
             timeline = timeline,
             tags = config.cardServiceTags,
             patterns = config.cardServicePatterns,
+            logUnmatched = config.cardServiceLogUnmatched,
         )
     }
     val isInitialized: Boolean get() = initialized
@@ -118,5 +119,7 @@ object RuntimeInspector {
         val cardServiceEnabled: Boolean = false,
         val cardServiceTags: List<String> = emptyList(),
         val cardServicePatterns: List<CardServiceLogPattern> = emptyList(),
+        /** Log every card service line that matched no pattern. Off in the field — it prints third-party log text. */
+        val cardServiceLogUnmatched: Boolean = false,
     )
 }

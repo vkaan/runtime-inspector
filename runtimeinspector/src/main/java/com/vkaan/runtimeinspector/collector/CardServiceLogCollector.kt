@@ -13,6 +13,7 @@ internal class CardServiceLogCollector(
     private val timeline: Timeline,
     private val tags: List<String>,
     patterns: List<CardServiceLogPattern>,
+    private val logUnmatched: Boolean = false,
 ) : Collector {
 
     private companion object {
@@ -24,6 +25,10 @@ internal class CardServiceLogCollector(
     @Volatile
     private var running = false
     private var process: Process? = null
+
+    // Reader thread only.
+    private var lines = 0L
+    private var matches = 0L
 
     override fun start(application: Application) {
         running = true
@@ -40,6 +45,10 @@ internal class CardServiceLogCollector(
             process = started
             Log.i(TAG, "Card service log reader started on ${tags.joinToString("|")}")
             started.inputStream.bufferedReader().forEachLine(::onLine)
+            // logcat closed the stream. With no READ_LOGS that happens immediately, at zero lines.
+            if (running) {
+                Log.w(TAG, "Card service log reader ended — $lines lines read, $matches matched.")
+            }
         } catch (e: IOException) {
             if (running) Log.w(TAG, "Card service log reader stopped: ${e.message}")
         }
@@ -47,7 +56,13 @@ internal class CardServiceLogCollector(
 
     private fun onLine(line: String) {
         if (!running) return
-        val match = tracker.onLine(line, SystemClock.elapsedRealtimeNanos()) ?: return
+        lines++
+        val match = tracker.onLine(line, SystemClock.elapsedRealtimeNanos())
+        if (match == null) {
+            if (logUnmatched) Log.d(TAG, "Card service line unmatched: $line")
+            return
+        }
+        matches++
         timeline.record { seq ->
             RuntimeEvent.CardService(
                 seq = seq,

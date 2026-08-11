@@ -1,17 +1,20 @@
 package com.vkaan.runtimeinspector.timeline
 
 import android.content.ComponentCallbacks2
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
 import com.vkaan.runtimeinspector.cardservice.CardServiceApi
 import com.vkaan.runtimeinspector.cardservice.CardServiceState
 import java.util.Locale
 
-sealed interface RuntimeEvent {
+sealed interface RuntimeEvent : Parcelable {
     val seq: Long
     val timestampMillis: Long
     val elapsedRealtimeNanos: Long
 
     fun logLine(): String
 
+    @Parcelize
     data class Lifecycle(
         override val seq: Long,
         override val timestampMillis: Long,
@@ -55,6 +58,7 @@ sealed interface RuntimeEvent {
     }
 
 
+    @Parcelize
     data class BackStack(
         override val seq: Long,
         override val timestampMillis: Long,
@@ -71,6 +75,7 @@ sealed interface RuntimeEvent {
                 "in $hostActivityName#$hostActivityId"
     }
 
+    @Parcelize
     data class Process(
         override val seq: Long,
         override val timestampMillis: Long,
@@ -83,6 +88,7 @@ sealed interface RuntimeEvent {
     }
 
 
+    @Parcelize
     data class Memory(
         override val seq: Long,
         override val timestampMillis: Long,
@@ -107,6 +113,7 @@ sealed interface RuntimeEvent {
     }
 
 
+    @Parcelize
     data class ConfigChange(
         override val seq: Long,
         override val timestampMillis: Long,
@@ -119,6 +126,7 @@ sealed interface RuntimeEvent {
     }
 
 
+    @Parcelize
     data class Crash(
         override val seq: Long,
         override val timestampMillis: Long,
@@ -135,6 +143,7 @@ sealed interface RuntimeEvent {
     }
 
 
+    @Parcelize
     data class Network(
         override val seq: Long,
         override val timestampMillis: Long,
@@ -152,6 +161,7 @@ sealed interface RuntimeEvent {
 
 
     /** Device-level signals delivered as system broadcasts (screen, battery, shutdown). */
+    @Parcelize
     data class SystemSignal(
         override val seq: Long,
         override val timestampMillis: Long,
@@ -165,6 +175,7 @@ sealed interface RuntimeEvent {
     }
 
 
+    @Parcelize
     data class MemoryUsage(
         override val seq: Long,
         override val timestampMillis: Long,
@@ -190,6 +201,7 @@ sealed interface RuntimeEvent {
     }
 
 
+    @Parcelize
     data class CardService(
         override val seq: Long,
         override val timestampMillis: Long,

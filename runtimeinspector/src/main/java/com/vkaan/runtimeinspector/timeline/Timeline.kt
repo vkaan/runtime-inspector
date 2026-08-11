@@ -7,7 +7,7 @@ import com.vkaan.runtimeinspector.rules.RiskEngine
 internal class Timeline(
     private val riskEngine: RiskEngine,
     private val capacity: Int = DEFAULT_CAPACITY,
-) {
+) : EventSink {
 
     private companion object {
         const val TAG = "RuntimeInspector"
@@ -20,7 +20,10 @@ internal class Timeline(
     private var nextSeq = 0L
     private var state = RuntimeState()
 
-    fun record(build: (seq: Long) -> RuntimeEvent) {
+    /** Events arriving from a host app already carry its sequence number; keep it. */
+    fun record(event: RuntimeEvent) = record { event }
+
+    override fun record(build: (seq: Long) -> RuntimeEvent) {
         val event: RuntimeEvent
         val before: RuntimeState
         val after: RuntimeState

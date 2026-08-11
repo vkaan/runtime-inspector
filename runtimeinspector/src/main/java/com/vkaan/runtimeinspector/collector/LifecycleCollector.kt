@@ -12,10 +12,10 @@ import androidx.fragment.app.FragmentManager
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.SourceType
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.Stage
-import com.vkaan.runtimeinspector.timeline.Timeline
+import com.vkaan.runtimeinspector.timeline.EventSink
 
 internal class LifecycleCollector(
-    private val timeline: Timeline,
+    private val timeline: EventSink,
 ) : Collector, Application.ActivityLifecycleCallbacks {
 
     private var application: Application? = null

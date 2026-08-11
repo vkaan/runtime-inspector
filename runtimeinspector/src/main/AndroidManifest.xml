@@ -3,4 +3,9 @@
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- From Android 11 on, the host cannot even see the inspector app without this. -->
+    <queries>
+        <package android:name="com.vkaan.runtimeinspector.app" />
+    </queries>
+
 </manifest>

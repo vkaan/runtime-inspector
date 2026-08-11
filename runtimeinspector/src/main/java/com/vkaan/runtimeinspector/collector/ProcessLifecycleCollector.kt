@@ -6,10 +6,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
-import com.vkaan.runtimeinspector.timeline.Timeline
+import com.vkaan.runtimeinspector.timeline.EventSink
 
 internal class ProcessLifecycleCollector (
-    private val timeline: Timeline
+    private val timeline: EventSink
 ) : Collector {
 
     private val observer = LifecycleEventObserver { _ , event ->

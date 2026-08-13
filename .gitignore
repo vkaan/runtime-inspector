@@ -8,3 +8,5 @@
 .externalNativeBuild
 .cxx
 local.properties
+# Token's platform AAR — theirs to distribute, not ours.
+/app/libs/

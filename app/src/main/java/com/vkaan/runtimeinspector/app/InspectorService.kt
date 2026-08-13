@@ -35,11 +35,21 @@ class InspectorService : Service() {
     // owns the timeline, the rules and the notifications, and nothing else.
     private val binder = object : IInspector.Stub() {
         override fun onEvent(event: Bundle) = RuntimeInspector.record(event)
+
+        override fun inspect() = PlatformLog.pull(this@InspectorService)
     }
 
     override fun onCreate() {
         super.onCreate()
-        RuntimeInspector.init(application, RuntimeInspector.Config(enabled = false))
+        RuntimeInspector.init(
+            application,
+            // enabled = false: the collectors run in the host app, not here. The patterns are for
+            // the platform log dump, which this side reads.
+            RuntimeInspector.Config(
+                enabled = false,
+                cardServicePatterns = CARD_SERVICE_PATTERNS,
+            ),
+        )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
                 .createNotificationChannel(

@@ -6,9 +6,12 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.IBinder
+import android.os.RemoteException
+import android.os.SystemClock
 import android.util.Log
 import android.app.Application
 import com.vkaan.runtimeinspector.cardservice.CardServiceLogPattern
+import com.vkaan.runtimeinspector.cardservice.CardServiceLogState
 import com.vkaan.runtimeinspector.collector.CardServiceLogCollector
 import com.vkaan.runtimeinspector.collector.Collector
 import com.vkaan.runtimeinspector.collector.ComponentCallbacksCollector
@@ -43,6 +46,9 @@ object RuntimeInspector {
     private lateinit var timeline: Timeline
     private lateinit var session: SessionContext
     private val collectors = mutableListOf<Collector>()
+
+    @Volatile
+    private var remote: IInspector? = null
 
     @JvmStatic
     @JvmOverloads
@@ -100,12 +106,15 @@ object RuntimeInspector {
 
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName, service: IBinder) {
-                startCollectors(app, RemoteSink(IInspector.Stub.asInterface(service)))
+                val inspector = IInspector.Stub.asInterface(service)
+                remote = inspector
+                startCollectors(app, RemoteSink(inspector))
                 Log.i(TAG, "Bound to the inspector service.")
             }
 
             override fun onServiceDisconnected(name: ComponentName) {
                 Log.w(TAG, "Inspector service died — collection stopped.")
+                remote = null
                 stopCollectors()
             }
         }
@@ -153,6 +162,55 @@ object RuntimeInspector {
 
     @JvmStatic
     fun risks(): List<Risk> = if (initialized) timeline.risks() else emptyList()
+
+    /** Ask the inspector app to pull the platform log dump and run the card service rules on it. */
+    @JvmStatic
+    fun inspect() {
+        val inspector = remote
+        if (inspector == null) {
+            Log.w(TAG, "inspect() called before the inspector service connected — ignored.")
+            return
+        }
+        try {
+            inspector.inspect()
+        } catch (e: RemoteException) {
+            Log.w(TAG, "Inspector service is gone — inspect() dropped: ${e.message}")
+        }
+    }
+
+    /**
+     * Service side: card service lines pulled from the platform log dump. Same tracker the logcat
+     * reader drives, one line at a time, in file order.
+     */
+    @JvmStatic
+    fun readCardServiceLines(lines: Sequence<String>): Int {
+        if (!initialized) return 0
+        if (config.cardServicePatterns.isEmpty()) {
+            Log.w(TAG, "No card service patterns configured — dump not read.")
+            return 0
+        }
+        val tracker = CardServiceLogState(config.cardServicePatterns)
+        var matches = 0
+        var read = 0L
+        for (line in lines) {
+            read++
+            val match = tracker.onLine(line, SystemClock.elapsedRealtimeNanos()) ?: continue
+            matches++
+            timeline.record { seq ->
+                RuntimeEvent.CardService(
+                    seq = seq,
+                    timestampMillis = System.currentTimeMillis(),
+                    elapsedRealtimeNanos = match.elapsedRealtimeNanos,
+                    from = match.from,
+                    to = match.to,
+                    apis = match.apis,
+                    line = match.line,
+                )
+            }
+        }
+        Log.i(TAG, "Card service dump read — $read lines, $matches matched.")
+        return matches
+    }
 
     /** Service side: an event that arrived over the binder from a host app. */
     @JvmStatic

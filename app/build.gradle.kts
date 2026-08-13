@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "com.vkaan.runtimeinspector.app"
-        minSdk = 24
+        minSdk = 25
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -31,5 +31,8 @@ android {
 
 dependencies {
     implementation(project(":runtimeinspector"))
+    // Token's platform API. getLog lives on TSystemServiceBinder; the wrapper needs minSdk 25.
+    implementation(files("libs/TSystemWrapper_Version_13_SUNMI_PLATFORM_API.aar"))
     implementation(libs.androidx.core.ktx)
+    testImplementation(libs.junit)
 }

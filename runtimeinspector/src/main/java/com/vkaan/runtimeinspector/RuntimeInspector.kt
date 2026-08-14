@@ -34,9 +34,10 @@ object RuntimeInspector {
 
     private const val TAG = "RuntimeInspector"
 
-    const val SERVICE_PACKAGE = "com.vkaan.runtimeinspector.app"
+    const val SERVICE_PACKAGE = "com.vkaan.runtimeinspector"
     const val SERVICE_CLASS = "com.vkaan.runtimeinspector.app.InspectorService"
     private const val KEY_EVENT = "event"
+    private const val UNMATCHED_LOG_LIMIT = 50
 
     @Volatile
     private var initialized = false
@@ -49,6 +50,10 @@ object RuntimeInspector {
 
     @Volatile
     private var remote: IInspector? = null
+
+    /** Held so unbind() can release the binding the host opened in init(). */
+    @Volatile
+    private var connection: ServiceConnection? = null
 
     @JvmStatic
     @JvmOverloads
@@ -119,9 +124,30 @@ object RuntimeInspector {
             }
         }
 
-        if (!app.bindService(intent, connection, Context.BIND_AUTO_CREATE)) {
+        if (app.bindService(intent, connection, Context.BIND_AUTO_CREATE)) {
+            this.connection = connection
+        } else {
             Log.e(TAG, "Inspector service not found — is $SERVICE_PACKAGE installed?")
         }
+    }
+
+    /**
+     * The counterpart to init(): the host calls this as it closes. Unbinding is what tells the
+     * inspector app the session is over, and that is where the log is pulled and the rules run.
+     */
+    @JvmStatic
+    fun unbind() {
+        val bound = synchronized(this) {
+            connection?.also { connection = null }
+        } ?: return
+        stopCollectors()
+        remote = null
+        try {
+            appContext.unbindService(bound)
+        } catch (e: IllegalArgumentException) {
+            Log.w(TAG, "Already unbound: ${e.message}")
+        }
+        Log.i(TAG, "Unbound from the inspector service.")
     }
 
     private fun startCollectors(app: Application, sink: EventSink) {
@@ -192,9 +218,18 @@ object RuntimeInspector {
         val tracker = CardServiceLogState(config.cardServicePatterns)
         var matches = 0
         var read = 0L
+        var unmatchedLogged = 0
         for (line in lines) {
             read++
-            val match = tracker.onLine(line, SystemClock.elapsedRealtimeNanos()) ?: continue
+            val match = tracker.onLine(line, SystemClock.elapsedRealtimeNanos())
+            if (match == null) {
+                // Capped: a dump can run to thousands of lines and logcat's buffer is not big.
+                if (config.cardServiceLogUnmatched && unmatchedLogged < UNMATCHED_LOG_LIMIT) {
+                    unmatchedLogged++
+                    Log.d(TAG, "Card service line unmatched: $line")
+                }
+                continue
+            }
             matches++
             timeline.record { seq ->
                 RuntimeEvent.CardService(

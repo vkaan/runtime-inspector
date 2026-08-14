@@ -17,7 +17,7 @@
         android:label="Runtime Inspector">
 
         <activity
-            android:name=".MainActivity"
+            android:name="com.vkaan.runtimeinspector.app.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -26,7 +26,7 @@
         </activity>
 
         <service
-            android:name=".InspectorService"
+            android:name="com.vkaan.runtimeinspector.app.InspectorService"
             android:exported="true"
             android:foregroundServiceType="specialUse">
             <property
@@ -35,7 +35,7 @@
         </service>
 
         <receiver
-            android:name=".BootReceiver"
+            android:name="com.vkaan.runtimeinspector.app.BootReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

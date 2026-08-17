@@ -24,6 +24,13 @@ internal object PlatformLog {
     // What we leave behind in destDir: the window we read, nothing older.
     private const val TRIMMED_NAME = "cardservice-recent.log"
 
+    // The platform's live buffer — the only file in the dump that can hold anything recent.
+    private const val BUFFER_NAME = "applog_logbuffer.log"
+
+    /** Size of the buffer at the last read, so an unflushed pull can be skipped. */
+    @Volatile
+    private var lastBufferBytes = 0L
+
     /**
      * Capture has to be on before the transaction happens, not when the dump is asked for, so this
      * runs from the service's onCreate.
@@ -85,13 +92,23 @@ internal object PlatformLog {
         if (!bound) Log.e(TAG, "getLog: TSystem bind refused — is the TSystem app installed?")
     }
 
-    /** Read what landed, then run every line through the card service tracker and its rules. */
-    private fun report(destDir: File) {
-        // Also the parent, in case savePath is meant to be a file rather than a directory.
-        val files = (destDir.walkTopDown() + File("/sdcard/Download").walkTopDown().maxDepth(1))
-            .filter { it.isFile }
-            .distinct()
-            .toList()
+    /**
+     * Read what landed, then run every line through the card service tracker and its rules.
+     *
+     * getLog's listener calls this on a binder thread, so a throw here breaks TSystem's transaction
+     * instead of failing the pull — nothing gets out.
+     */
+    private fun report(destDir: File) = try {
+        readAndReport(destDir)
+    } catch (e: Exception) {
+        Log.e(TAG, "getLog: report failed — ${e.message}", e)
+    }
+
+    private fun readAndReport(destDir: File) {
+        // getLog answers with the directory it wrote to — result="/sdcard/Download/runtimeinspector"
+        // — so there is no reason to read the rest of Download.
+        // Our own output is in here too — reading it back would replay the last window as new events.
+        val files = destDir.walkTopDown().filter { it.isFile && it.name != TRIMMED_NAME }.toList()
         if (files.isEmpty()) {
             Log.w(TAG, "getLog: nothing written to ${destDir.absolutePath}")
             return
@@ -104,6 +121,14 @@ internal object PlatformLog {
             }
             Log.i(TAG, "getLog file: ${file.absolutePath} ${file.length()} bytes | $firstLine")
         }
+        // The platform flushes in ~128KiB blocks: 8983288 -> 9114351 -> 9245366 bytes over an
+        // afternoon. Same size means the transaction we just watched is not in the file yet.
+        val bufferBytes = files.firstOrNull { it.name == BUFFER_NAME }?.length() ?: 0L
+        if (bufferBytes > 0L && bufferBytes == lastBufferBytes) {
+            Log.i(TAG, "getLog: $BUFFER_NAME still $bufferBytes bytes — nothing flushed, not read.")
+            return
+        }
+        lastBufferBytes = bufferBytes
         val kept = DumpReader.lines(files, System.currentTimeMillis()).toList()
         keepOnlyTrimmed(destDir, files, kept)
         RuntimeInspector.readCardServiceLines(kept.asSequence())
@@ -114,6 +139,12 @@ internal object PlatformLog {
      * read and drop the raw dump, so the folder holds that window and not two days.
      */
     private fun keepOnlyTrimmed(destDir: File, files: List<File>, kept: List<String>) {
+        // Otherwise a pull that kept nothing blanks the last good window and deletes the dump that
+        // could tell us why.
+        if (kept.isEmpty()) {
+            Log.w(TAG, "Nothing kept — raw dumps left in place.")
+            return
+        }
         val trimmed = File(destDir, TRIMMED_NAME)
         try {
             trimmed.writeText(kept.joinToString("\n"))

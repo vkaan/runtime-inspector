@@ -138,6 +138,8 @@ object RuntimeInspector {
     @JvmStatic
     fun unbind() {
         val bound = synchronized(this) {
+            // Lets init() run again if the host reopens in the same process — that is a new session.
+            initialized = false
             connection?.also { connection = null }
         } ?: return
         stopCollectors()
@@ -215,6 +217,7 @@ object RuntimeInspector {
             Log.w(TAG, "No card service patterns configured — dump not read.")
             return 0
         }
+        Log.i(TAG, "Card service dump read — start.")
         val tracker = CardServiceLogState(config.cardServicePatterns)
         var matches = 0
         var read = 0L
@@ -243,7 +246,7 @@ object RuntimeInspector {
                 )
             }
         }
-        Log.i(TAG, "Card service dump read — $read lines, $matches matched.")
+        Log.i(TAG, "Card service dump read — done, $read lines, $matches matched.")
         return matches
     }
 

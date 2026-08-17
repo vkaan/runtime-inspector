@@ -8,7 +8,8 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.vkaan.runtimeinspector.app"
+        // The Kotlin package stays .app so BuildConfig/R do not clash with the library.
+        applicationId = "com.vkaan.runtimeinspector"
         minSdk = 25
         targetSdk = 34
         versionCode = 1
@@ -26,6 +27,10 @@ android {
     }
     kotlinOptions {
         jvmTarget = "11"
+    }
+    testOptions {
+        // DumpReader logs what it kept; without this every android.util.Log call throws.
+        unitTests.isReturnDefaultValues = true
     }
 }
 

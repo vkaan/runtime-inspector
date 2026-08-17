@@ -5,7 +5,7 @@
 
     <!-- From Android 11 on, the host cannot even see the inspector app without this. -->
     <queries>
-        <package android:name="com.vkaan.runtimeinspector.app" />
+        <package android:name="com.vkaan.runtimeinspector" />
     </queries>
 
 </manifest>

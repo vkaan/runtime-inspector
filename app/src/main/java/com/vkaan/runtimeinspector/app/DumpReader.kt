@@ -15,39 +15,64 @@ internal object DumpReader {
 
     private const val WINDOW_MILLIS = 15 * 60 * 1000L
 
-    // logcat's threadtime prefix: "08-11 13:45:02.123 ..."
-    private val TIMESTAMP = Regex("""^(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\.(\d{3})""")
+    // logcat's threadtime prefix "08-11 13:45:02.123", with an optional year in front and a comma
+    // allowed for the millis — the dump's exact shape is still unconfirmed.
+    private val TIMESTAMP =
+        Regex("""^\[?(?:(\d{4})-)?(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})[.,](\d{3})""")
 
-    fun lines(files: List<File>, nowMillis: Long): Sequence<String> =
-        files.asSequence().flatMap { file -> read(file) }.filter { keep(it, nowMillis) }
+    /** Newest line already analysed, so the next pull does not re-report the same window. */
+    var lastProcessedMillis = 0L
 
-    private fun read(file: File): Sequence<String> =
-        if (file.extension.equals("zip", ignoreCase = true)) readZip(file) else file.readLines().asSequence()
+    fun lines(files: List<File>, nowMillis: Long): Sequence<String> {
+        var dated = 0
+        var undated = 0
+        var newest = lastProcessedMillis
 
-    private fun readZip(file: File): Sequence<String> = try {
-        val zip = ZipFile(file)
-        zip.entries().asSequence()
-            .filterNot { it.isDirectory }
-            .flatMap { entry ->
-                zip.getInputStream(entry).bufferedReader().readLines().asSequence()
+        // Runs while the file is still being read, so the old lines never reach the heap.
+        fun keep(line: String): Boolean {
+            val millis = timestampMillis(line, nowMillis)
+            if (millis == null) {
+                undated++
+                // A line we cannot date may still be one we need.
+                return true
             }
-    } catch (e: Exception) {
-        Log.w(TAG, "Dump zip unreadable: ${file.name} — ${e.message}")
-        emptySequence()
+            dated++
+            newest = maxOf(newest, millis)
+            return nowMillis - millis <= WINDOW_MILLIS && millis > lastProcessedMillis
+        }
+
+        val kept = files.flatMap { file ->
+            if (file.extension.equals("zip", ignoreCase = true)) zipLines(file, ::keep)
+            else file.useLines { lines -> lines.filter(::keep).toList() }
+        }
+        // Tells us whether the timestamp shapes above actually match the dump.
+        Log.i(TAG, "Dump lines: kept=${kept.size} dated=$dated undated=$undated")
+        lastProcessedMillis = newest
+        return kept.asSequence()
     }
 
-    /** Lines older than the window are dropped; anything we cannot date is kept. */
-    private fun keep(line: String, nowMillis: Long): Boolean {
-        val millis = timestampMillis(line, nowMillis) ?: return true
-        return nowMillis - millis <= WINDOW_MILLIS
+    // Filter and collect inside use() — a lazy sequence would outlive the closed file and slip
+    // its reads past the catch.
+    private fun zipLines(file: File, keep: (String) -> Boolean): List<String> = try {
+        ZipFile(file).use { zip ->
+            zip.entries().asSequence()
+                .filterNot { it.isDirectory }
+                .flatMap { entry -> zip.getInputStream(entry).bufferedReader().lineSequence() }
+                .filter(keep)
+                .toList()
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "Dump zip unreadable: ${file.name} — ${e.message}")
+        emptyList()
     }
 
     private fun timestampMillis(line: String, nowMillis: Long): Long? {
         val m = TIMESTAMP.find(line) ?: return null
-        val (month, day, hour, minute, second, milli) = m.destructured
-        // The dump carries no year, so take the current one and step back if that lands ahead.
+        val (year, month, day, hour, minute, second, milli) = m.destructured
+        // Without a year in the line, take the current one and step back if that lands ahead.
         val calendar = Calendar.getInstance().apply {
             timeInMillis = nowMillis
+            if (year.isNotEmpty()) set(Calendar.YEAR, year.toInt())
             set(Calendar.MONTH, month.toInt() - 1)
             set(Calendar.DAY_OF_MONTH, day.toInt())
             set(Calendar.HOUR_OF_DAY, hour.toInt())
@@ -55,7 +80,7 @@ internal object DumpReader {
             set(Calendar.SECOND, second.toInt())
             set(Calendar.MILLISECOND, milli.toInt())
         }
-        if (calendar.timeInMillis > nowMillis) calendar.add(Calendar.YEAR, -1)
+        if (year.isEmpty() && calendar.timeInMillis > nowMillis) calendar.add(Calendar.YEAR, -1)
         return calendar.timeInMillis
     }
 }

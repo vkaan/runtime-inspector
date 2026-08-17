@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.vkaan.runtimeinspector.IInspector
 import com.vkaan.runtimeinspector.RuntimeInspector
@@ -15,6 +16,10 @@ import com.vkaan.runtimeinspector.RuntimeInspector
 class InspectorService : Service() {
 
     companion object {
+        const val ACTION_INSPECT = "com.vkaan.runtimeinspector.INSPECT"
+
+        private const val TAG = "RuntimeInspector"
+
         // Own channel, IMPORTANCE_LOW so the ongoing notification stays silent over a payment
         // screen. RiskNotifier's channel is the loud one.
         private const val CHANNEL_ID = "runtimeinspector_service"
@@ -48,8 +53,10 @@ class InspectorService : Service() {
             RuntimeInspector.Config(
                 enabled = false,
                 cardServicePatterns = CARD_SERVICE_PATTERNS,
+                cardServiceLogUnmatched = true,
             ),
         )
+        PlatformLog.enableCapture(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
                 .createNotificationChannel(
@@ -66,7 +73,22 @@ class InspectorService : Service() {
         )
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Lets a bench trigger the pull straight from adb, with no host app and no screen tap.
+        if (intent?.action == ACTION_INSPECT) PlatformLog.pull(this)
+        return START_STICKY
+    }
 
     override fun onBind(intent: Intent): IBinder = binder
+
+    /**
+     * The host closed — RuntimeInspector.unbind(), or its process dying. Either way the session is
+     * over, so this is where the dump gets pulled and the card service rules run on it.
+     */
+    override fun onUnbind(intent: Intent?): Boolean {
+        Log.i(TAG, "Host unbound — pulling the log.")
+        PlatformLog.pull(this)
+        // Rebind goes through onBind again, which is all a restarted host needs.
+        return false
+    }
 }

@@ -1,12 +1,26 @@
 # RuntimeInspector
 
-An Android library for detecting **potential runtime risks**. It observes an app through
-Android's official lifecycle and callback APIs, records everything on a single ordered
-timeline, derives a live view of the app's runtime state from it, and runs deterministic
-risk rules over every event.
+A tool for detecting **potential runtime risks** in an Android app. It observes the app
+through Android's official lifecycle and callback APIs, records everything on a single
+ordered timeline, derives a live view of the app's runtime state from it, and runs
+deterministic risk rules over every event.
 
-No bytecode instrumentation, no reflection — only official callback mechanisms, plus one
-opt-in reader that consumes another app's logcat output through a documented permission.
+It ships as two pieces:
+
+- **`runtimeinspector`** — the AAR that goes inside the app under test. It only collects.
+  Activity, Fragment, crash, heap and network signals exist only inside the observed
+  process, so this half has to live there.
+- **`app`** — an installable APK that runs a foreground service. It holds the timeline, the
+  rules, the findings and the notifications, and it pulls the card service log from the
+  platform.
+
+The app under test writes two lines — `RuntimeInspector.init(this)` as it starts and
+`RuntimeInspector.unbind()` as it closes — and the AAR binds to that service on its own.
+Events cross the process boundary over AIDL. The unbind is what tells the service the session
+is over, so the log gets pulled and the rules run without anyone reaching a screen.
+
+No bytecode instrumentation, no reflection — only official callback mechanisms, plus Token's
+platform API for the card service log.
 
 ## Features
 
@@ -28,9 +42,9 @@ opt-in reader that consumes another app's logcat output through a documented per
   (`ORIENTATION`, `UI_MODE`, `LOCALE`, …) rather than a bare boolean.
 - **Device signals** — screen on/off, battery low/okay and shutdown, received as system
   broadcasts; on a terminal these are business events, not housekeeping.
-- **Card service state** (opt-in) — a separate app's transaction state, tracked by reading
-  its logcat lines against configured patterns, so an interruption in the host app can be
-  correlated with an open transaction in another process.
+- **Card service state** — a separate app's transaction state, tracked by pulling the
+  platform log dump and matching its lines against patterns, so an interruption in the host
+  app can be correlated with an open transaction in another process.
 - **Runtime timeline** — one ordered, bounded, thread-safe log of all of the above.
 - **Runtime state** — a live summary derived from the timeline.
 - **Risk Engine** — deterministic rules evaluated on every event, with severity levels,
@@ -38,42 +52,52 @@ opt-in reader that consumes another app's logcat output through a documented per
 
 ## Requirements
 
-- `minSdk` 24
+- `minSdk` 24 for the library, 25 for the inspector app (Token's wrapper requires it)
 - Kotlin
+- Token's `TSystemWrapper` AAR in `app/libs/` — it is theirs to distribute, so it is not in
+  this repo. Without it the `:app` module will not build.
 
-## Installation
+## Setup
 
-As a project module:
+**1. Build both artifacts.**
 
-```kotlin
-dependencies {
-    implementation(project(":runtimeinspector"))
-}
+```bash
+./gradlew :runtimeinspector:assembleRelease :app:assembleDebug
 ```
 
-Or from a built AAR (`./gradlew :runtimeinspector:assembleRelease`):
+The AAR lands in `runtimeinspector/build/outputs/aar/`, the APK in
+`app/build/outputs/apk/debug/`. The APK is a debug build because a release APK is unsigned
+and will not install without a keystore.
+
+**2. Install the inspector app and open it once.**
+
+```bash
+adb install -r app-debug.apk
+```
+
+Opening it matters: an app that has never been launched sits in Android's *stopped state*,
+where it receives no `BOOT_COMPLETED` and cannot be bound by another app. After the first
+launch the service starts on every boot on its own.
+
+**3. Add the AAR to the app under test.**
 
 ```kotlin
 dependencies {
     implementation(files("libs/runtimeinspector-release.aar"))
     implementation("androidx.lifecycle:lifecycle-process:2.9.0")
+    implementation("androidx.fragment:fragment:1.7.1")
 }
 ```
 
-> A raw AAR does not carry transitive dependencies, so `lifecycle-process` must be declared
-> by the host app. Without it, `ProcessLifecycleOwner` throws `NoClassDefFoundError` during
-> `init()`.
+> A raw AAR does not carry transitive dependencies, so these must be declared by the host
+> app. Without `lifecycle-process`, `ProcessLifecycleOwner` throws `NoClassDefFoundError`
+> during `init()`.
 
-The library's manifest declares `ACCESS_NETWORK_STATE` (a normal-level permission); manifest
-merging adds it to the host automatically.
-
-## Usage
-
-Initialize from `Application.onCreate()` — **not** from an Activity, or the first Activity's
-`CREATED` event and all Fragment events will be missed:
+**4. Initialize from `Application.onCreate()`** — not from an Activity, or the first
+Activity's `CREATED` event and all Fragment events will be missed:
 
 ```kotlin
-class DemoApp : Application() {
+class HostApp : Application() {
     override fun onCreate() {
         super.onCreate()
         RuntimeInspector.init(this)
@@ -81,7 +105,35 @@ class DemoApp : Application() {
 }
 ```
 
-Collection starts automatically. Events are logged under the tag `RuntimeInspector`:
+That one call binds to the inspector service and starts collecting once connected. The host
+declares no service, no permission and no manifest entry — the library's manifest carries
+the `<queries>` entry that lets the host see the inspector app, and manifest merging adds it.
+
+**5. Unbind when the app closes** — from the same process that called `init()`, at the app's
+own shutdown point:
+
+```kotlin
+RuntimeInspector.unbind()
+```
+
+This is the trigger for the whole analysis: the service sees the binding drop, pulls the
+platform log dump and runs the card service rules on it. Do not put it in an Activity's
+`onDestroy()` — that fires on every rotation. If the host process dies without calling it,
+the service is told anyway and pulls all the same, just later.
+
+**6. Watch the output.**
+
+```bash
+adb logcat -s RuntimeInspector
+```
+
+In Android Studio's Logcat tab, the same filter is `tag:RuntimeInspector`. Both processes
+log under this one tag.
+
+`Bound to the inspector service.` means the binding worked. `Inspector service not found`
+means the inspector app is not installed, or has never been opened.
+
+Events look like this:
 
 ```
 PROCESS app -> FOREGROUNDED
@@ -103,11 +155,27 @@ change while its back stack held 1 entries — in-flight callbacks and results c
 verify state restoration.
 ```
 
-Findings are also available programmatically:
+Findings are also available programmatically — **in the inspector app's process**, which is
+where the rules run:
 
 ```kotlin
 val findings: List<Risk> = RuntimeInspector.risks()
 ```
+
+Calling this in the app under test returns an empty list. Its collectors write straight to
+the binder, so its own timeline never sees an event.
+
+### Pulling the card service log
+
+```kotlin
+RuntimeInspector.inspect()
+```
+
+Sends the request across the binder; the service calls Token's `getLog`, reads the dump and
+runs the card service rules over it. `unbind()` does the same at the end of a session, which
+is the normal path — `inspect()` is for a check partway through. The inspector app's own
+screen also has an **İncele** button, so the platform call can be tried with no host app at
+all, and `am startservice … -a com.vkaan.runtimeinspector.INSPECT` does it from adb.
 
 ## Risk rules
 
@@ -155,77 +223,75 @@ public window over what they conclude.
 
 ### Configuration
 
+`Config` is read by whichever side owns the timeline — in practice the inspector app, in
+`InspectorService.onCreate`. The app under test can pass one too, but its collectors send
+everything across the binder, so only `enabled` has any effect there.
+
 ```kotlin
 RuntimeInspector.init(
     this,
     RuntimeInspector.Config(
-        enabled = true,
+        enabled = true,           // false in the service: it collects nothing itself
         notifyOnRisk = true,      // status-bar notification per finding
         backStackCeiling = 10,    // BACKSTACK_GROWTH threshold
         heapPercentCeiling = 85,  // MEMORY_PRESSURE heap threshold (%)
         networkFlapCount = 3,     // NETWORK_FLAPPING: losses within the window (max 10)
         networkFlapWindowSeconds = 60,
-        cardServiceEnabled = false,          // opt-in; see Card service tracking
-        cardServiceTags = emptyList(),       // logcat tags the card service writes under
-        cardServicePatterns = emptyList(),   // line pattern -> state
+        cardServicePatterns = CARD_SERVICE_PATTERNS,  // line pattern -> API + state
+        cardServiceEnabled = false,   // legacy logcat reader; see below
+        cardServiceTags = emptyList(),
+        cardServiceLogUnmatched = false,
     ),
 )
 ```
 
-Rule thresholds are per-host settings — different apps have legitimately different
+Rule thresholds are per-deployment settings — different apps have legitimately different
 navigation depths and memory profiles.
 
 ### Card service tracking
 
-Off by default. When enabled, the library runs `logcat` filtered to the configured tags,
-matches each line against the configured patterns, and puts the result on the timeline
-alongside the host app's own events. A pattern names the `CardServiceApi` the line stands
-for and, when the line also moves the transaction on, the `CardServiceState` it moves to.
-That is what lets `TRANSACTION_INTERRUPTED` compare a screen-off in this process against an
-open transaction in another one, and what the five call-ordering rules read.
+The card service is a separate app, so its transaction state can only be learned from its
+log. The inspector app asks Token's platform for that log rather than reading logcat itself.
 
-```kotlin
-RuntimeInspector.Config(
-    cardServiceEnabled = true,
-    cardServiceTags = listOf("com.tokeninc.cardservice"),
-    cardServicePatterns = listOf(
-        CardServiceLogPattern(
-            Regex("""getCard called with config:.*"emvProcessType"\s*:\s*1\b"""),
-            CardServiceApi.GET_CARD,
-            CardServiceState.READ_CARD,
-        ),
-        CardServiceLogPattern(
-            Regex("""getCard called with config:.*"emvProcessType"\s*:\s*2\b"""),
-            CardServiceApi.GET_CARD,
-            CardServiceState.CONTINUE_EMV,
-        ),
-        CardServiceLogPattern(
-            Regex("getOnlinePIN"),
-            CardServiceApi.GET_ONLINE_PIN,
-        ),
-        CardServiceLogPattern(
-            Regex("completeEmv", RegexOption.IGNORE_CASE),
-            CardServiceApi.COMPLETE_EMV,
-            CardServiceState.COMPLETED,
-        ),
-        CardServiceLogPattern(Regex("A client is bound"), CardServiceApi.BIND),
-    ),
-)
-```
+Capture is turned on when the service starts, not when the dump is asked for — `onCreate`
+calls `enableAppLog(true)` and `setAppLogList(listOf("com.tokeninc.cardservice"))`. The
+platform captures app logs **by package name**, which is why no logcat tag is configured
+anywhere any more. Doing this at pull time would be too late: the transaction has already
+happened.
 
-Patterns are configuration rather than code so that a card service's real wording can be
-dropped in without touching the library. Matching is a substring search and every matching
-pattern counts, so one line can stand for more than one API — a `getCard` that also asks
-for an online PIN is both. The transaction state comes from the first matching pattern that
-carries one, so order those from most specific to least.
+Then, on the host unbinding (or `inspect()`, the **İncele** button, or the adb action) the
+service:
 
-Enabling it with empty tags or patterns logs a warning and skips the collector.
+1. binds TSystem through `TSystemServiceBinder`
+2. calls `getLog(0, destDir, listener)`, where 0 means app logs — the only ones we listed
+3. reads whatever landed in `destDir`, keeps the last fifteen minutes, skips anything already read by an
+   earlier pull, and runs the rest through `CardServiceLogState` one line at a time
 
-> **The library never declares `READ_LOGS`.** The host app must declare it and have it
-> granted (`adb shell pm grant <pkg> android.permission.READ_LOGS` on a bench). Without the
-> permission the reader sees only the host's own lines, matches nothing, and stays silent.
-> On Android releases newer than the API 24–28 target fleet, a system consent dialog must
-> also be accepted — it offers one-time access only, so it recurs on every app start.
+`getLog` takes no time range, so the file itself still goes as far back as the platform kept
+it; the trimming is ours. A line whose timestamp we cannot parse is kept rather than dropped,
+so every pull logs `Dump lines: kept=… dated=… undated=…` — `dated=0` means the dump's
+timestamp format is not one of the two `DumpReader` knows, and nothing is being trimmed.
+
+A pattern names the `CardServiceApi` the line stands for and, when the line also moves the
+transaction on, the `CardServiceState` it moves to. That is what lets
+`TRANSACTION_INTERRUPTED` compare a screen-off in the host process against an open
+transaction in another one, and what the five call-ordering rules read.
+
+The nine patterns live in the inspector app, in `CardServicePatterns.kt`.
+
+Matching is a substring search and every matching pattern counts, so one line can stand for
+more than one API. The transaction state comes from the first matching pattern that carries
+one, so order those from most specific to least.
+
+`destDir` is `/sdcard/Download/runtimeinspector`, chosen because Token's own `getSysLog`
+writes to `/sdcard/Download/DeviceLog.txt`. If a run produces no files there, the log says
+so and the path is one constant in `PlatformLog.kt`.
+
+> **Nothing here needs `READ_LOGS`.** The platform produces the dump, so the app under test
+> needs no log permission and no consent dialog. The old path — the library running `logcat`
+> itself, configured with `cardServiceEnabled` and `cardServiceTags` — is still in the code
+> but is not used; it required `READ_LOGS` in the host app plus a system consent dialog on
+> every app start from Android 11 on.
 
 ### Notifications
 
@@ -235,21 +301,30 @@ with a `×N` count rather than stacking, because the notification ID is derived 
 same rule + subject key used for deduplication. Logcat still receives every finding
 regardless of this setting.
 
-Android freezes a channel's settings once it has been created on a device, so `CHANNEL_ID`
-carries a version suffix — changing importance requires shipping a new channel id, not
-editing the existing one.
-
 The library declares **no notification permission**, so nothing is added to the host's
-merged manifest. On API 33+ that means notifications only appear if the host app already
-holds `POST_NOTIFICATIONS`; on the Android 9–10 target fleet no permission is required.
+merged manifest. Findings are now posted by the inspector app, which declares
+`POST_NOTIFICATIONS` itself.
+
+Separately from findings, the inspector app shows one permanent notification for its
+foreground service. That one sits on its own channel at `IMPORTANCE_LOW`, so it stays silent
+in the shade instead of appearing over a payment screen.
 
 ## Architecture
 
 ```
-Collectors ──emit──▶ Timeline ──reduce──▶ RuntimeState
-                        │
-                        └─(event, before, after)─▶ RiskEngine ──▶ RISK log lines + risks()
+     app under test (AAR)                    inspector app (APK)
+
+  Collectors ──▶ RemoteSink ──AIDL──▶ InspectorService ──▶ Timeline ──▶ RuntimeState
+                                             │                 │
+  TSystem ◀── getLog ── PlatformLog ◀── unbind()/inspect()      └──▶ RiskEngine ──▶ RISK lines
+                  │                                                              + notifications
+                  └──▶ DumpReader ──▶ readCardServiceLines ──▶ CardServiceLogState
 ```
+
+Both halves are the same `RuntimeInspector` object, initialized differently: the host with
+`enabled = true` so it collects, the service with `enabled = false` so it only records what
+arrives. Sequence numbers are assigned in the host — it is the only place events originate —
+and the service keeps them.
 
 - **Collectors** register Android callbacks and translate them into `RuntimeEvent`s.
 - **Timeline** assigns a monotonic sequence number to each event under a single lock, stores
@@ -257,56 +332,63 @@ Collectors ──emit──▶ Timeline ──reduce──▶ RuntimeState
   state snapshots are captured inside the lock; rules run outside it, so a slow or broken
   rule can never block a collector.
 - **RuntimeState** is produced only by a pure reducer, applied incrementally.
-- **RiskEngine** runs every registered rule on every event, deduplicates findings, keeps the
-  most recent 100, and logs each new one. A rule that throws is logged and skipped — a rule
-  bug must never crash the host.
+- **RiskEngine** runs every registered rule on every event, deduplicates findings, keeps 100
+  of them, and logs each new one. A rule that throws is logged and skipped — a rule bug must
+  never crash the host. Eviction is by first-seen order, not recency: a finding that keeps
+  repeating can be dropped while a newer one-off survives.
 
 ```
-com/vkaan/runtimeinspector/
-├── RuntimeInspector.kt          public entry point
-├── collector/
-│   ├── Collector.kt
-│   ├── LifecycleCollector.kt
-│   ├── ProcessLifecycleCollector.kt
-│   ├── ComponentCallbacksCollector.kt
-│   ├── ConnectivityCollector.kt
-│   ├── CrashCollector.kt
-│   ├── SystemBroadcastCollector.kt
-│   ├── CardServiceLogCollector.kt
-│   └── HeapSampler.kt
-├── cardservice/
-│   ├── CardServiceState.kt      public state enum
-│   ├── CardServiceApi.kt        public API-name enum
-│   ├── CardServiceLogState.kt   public pattern type + internal tracker
-│   └── rules/
-│       └── <one file per card service rule>
-├── rules/
-│   ├── Risk.kt                  public finding type
-│   ├── RiskRule.kt
-│   ├── RiskEngine.kt
-│   └── <one file per rule>
-├── report/
-│   ├── SessionContext.kt
-│   ├── SessionContextFactory.kt
-│   ├── FindingRecord.kt
-│   ├── Json.kt
-│   └── RiskNotifier.kt
-└── timeline/
-    ├── RuntimeEvent.kt
-    ├── Timeline.kt
-    └── RuntimeState.kt
+runtimeinspector/                the AAR
+└── com/vkaan/runtimeinspector/
+    ├── RuntimeInspector.kt      public entry point: init, inspect, risks, record
+    ├── IInspector.aidl          the interface both processes compile against
+    ├── collector/               one per signal: lifecycle, process, memory, network,
+    │                            crash, broadcasts, heap, and the unused logcat reader
+    ├── cardservice/
+    │   ├── CardServiceState.kt  public state enum
+    │   ├── CardServiceApi.kt    public API-name enum
+    │   ├── CardServiceLogState.kt  public pattern type + internal tracker
+    │   └── rules/               one file per card service rule
+    ├── rules/                   Risk, RiskRule, RiskEngine + one file per rule
+    ├── report/                  SessionContext, RiskNotifier, FindingRecord, Json
+    └── timeline/
+        ├── RuntimeEvent.kt      parcelable events
+        ├── EventSink.kt         where a collector writes
+        ├── RemoteSink.kt        the binder implementation of it
+        ├── Timeline.kt          the in-process implementation of it
+        └── RuntimeState.kt
+
+app/                             the APK
+└── com/vkaan/runtimeinspector/app/
+    ├── InspectorService.kt      foreground service, holds the binder
+    ├── BootReceiver.kt          starts it at power-on
+    ├── MainActivity.kt          one screen, one İncele button
+    ├── PlatformLog.kt           TSystem bind + getLog
+    ├── DumpReader.kt            dump -> lines, last 15 min, unread only
+    └── CardServicePatterns.kt   the nine patterns
 ```
 
-`RuntimeInspector` is the intended public surface — `init()`, `isInitialized`, `risks()`,
-`Config` — plus `Risk`, the finding type it returns, and `CardServiceState`,
-`CardServiceApi` and `CardServiceLogPattern`, which a host needs in order to configure card
-service tracking.
-`Timeline`, `RuntimeState`, the rules, the collectors and the log tracker are `internal`.
+`RuntimeInspector` is the intended public surface — `init()`, `unbind()`, `isInitialized`,
+`risks()`, `inspect()`, `readCardServiceLines()`, `record()` and `Config` — plus `Risk`, the finding
+type it returns, and `CardServiceState`, `CardServiceApi` and `CardServiceLogPattern`,
+needed to declare patterns. `Timeline`, `RuntimeState`, `EventSink`, `RemoteSink`, the rules,
+the collectors and the log tracker are `internal`.
 
 ## Building
 
 ```bash
-./gradlew :runtimeinspector:assembleRelease
+./gradlew :runtimeinspector:assembleRelease :app:assembleDebug
 ```
 
-Output: `runtimeinspector/build/outputs/aar/runtimeinspector-release.aar`
+Outputs:
+
+- `runtimeinspector/build/outputs/aar/runtimeinspector-release.aar`
+- `app/build/outputs/apk/debug/app-debug.apk`
+
+`:app` needs Token's wrapper AAR in `app/libs/` first — it is gitignored.
+
+Tests:
+
+```bash
+./gradlew :runtimeinspector:testDebugUnitTest :app:testDebugUnitTest
+```

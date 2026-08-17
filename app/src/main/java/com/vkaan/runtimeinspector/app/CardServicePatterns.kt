@@ -34,7 +34,9 @@ internal val CARD_SERVICE_PATTERNS = listOf(
         CardServiceState.COMPLETED,
     ),
     CardServiceLogPattern(
-        Regex("takeOutICC", RegexOption.IGNORE_CASE),
+        // Observed on the terminal as "IccTakeOutTask doInBackground"; takeOutICC is the API name
+        // and stays in case another build logs it that way.
+        Regex("IccTakeOut|takeOutICC", RegexOption.IGNORE_CASE),
         CardServiceApi.TAKE_OUT_ICC,
     ),
     CardServiceLogPattern(

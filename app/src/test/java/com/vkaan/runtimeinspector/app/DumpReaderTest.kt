@@ -13,11 +13,6 @@ class DumpReaderTest {
 
     private val now = System.currentTimeMillis()
 
-    @Before
-    fun forgetPreviousPulls() {
-        DumpReader.lastProcessedMillis = 0L
-    }
-
     private fun stamp(minutesAgo: Long, pattern: String = "MM-dd HH:mm:ss.SSS"): String =
         SimpleDateFormat(pattern, Locale.US).format(now - minutesAgo * 60_000L)
 
@@ -49,37 +44,62 @@ class DumpReaderTest {
     }
 
     @Test
-    fun `a zipped dump is read and windowed like a plain one`() {
+    fun `a zipped dump is skipped — it is a rotated log, never in the window`() {
         val zip = File.createTempFile("dump", ".zip").apply {
             ZipOutputStream(outputStream()).use { out ->
-                out.putNextEntry(ZipEntry("DeviceLog.txt"))
-                out.write(
-                    (
-                        "${stamp(2)} I cardservice: completeEmvTxn\n" +
-                            "${stamp(90)} I cardservice: getOnlinePIN"
-                        ).toByteArray()
-                )
+                out.putNextEntry(ZipEntry("applog_20260811-133246.txt"))
+                out.write("${stamp(2)} I cardservice: completeEmvTxn".toByteArray())
                 out.closeEntry()
             }
         }
 
-        val kept = DumpReader.lines(listOf(zip), now).toList()
-
-        assertEquals(listOf("${stamp(2)} I cardservice: completeEmvTxn"), kept)
+        assertEquals(0, DumpReader.lines(listOf(zip), now).count())
     }
 
     @Test
-    fun `a line with no timestamp is kept`() {
-        val file = dumpOf("getCard called with config: {}")
+    fun `an undated line follows the dated line above it`() {
+        val file = dumpOf(
+            "${stamp(90)} I cardservice: getOnlinePIN",
+            "=================== [pid=6746, packagename=com.tokeninc.cardservice] ===================",
+            "${stamp(2)} I cardservice: getCard called with config: {",
+            "  \"emvProcessType\": 1",
+            "}",
+        )
 
-        assertEquals(1, DumpReader.lines(listOf(file), now).count())
+        val kept = DumpReader.lines(listOf(file), now).toList()
+
+        assertEquals(
+            listOf(
+                "${stamp(2)} I cardservice: getCard called with config: {",
+                "  \"emvProcessType\": 1",
+                "}",
+            ),
+            kept,
+        )
     }
 
     @Test
-    fun `a second pull skips what the first one already read`() {
-        val file = dumpOf("${stamp(2)} I cardservice: completeEmvTxn")
+    fun `undated lines before any dated line are dropped`() {
+        val file = dumpOf("=================== start-applog [log_index=9] ===================")
 
-        assertEquals(1, DumpReader.lines(listOf(file), now).count())
         assertEquals(0, DumpReader.lines(listOf(file), now).count())
+    }
+
+    @Test
+    fun `only the tail of a large dump is read`() {
+        val recent = "${stamp(2)} I cardservice: completeEmvTxn"
+        val filler = "${stamp(90)} I cardservice: getOnlinePIN"
+        val file = File.createTempFile("dump", ".txt").apply {
+            bufferedWriter().use { out ->
+                // In the window, so only its position past the 2MB tail can keep it out.
+                out.write("${stamp(3)} I cardservice: takeOutICC\n")
+                repeat(2 * 1024 * 1024 / filler.length + 1) { out.write("$filler\n") }
+                out.write("$recent\n")
+            }
+        }
+
+        val kept = DumpReader.lines(listOf(file), now).toList()
+
+        assertEquals(listOf(recent), kept)
     }
 }

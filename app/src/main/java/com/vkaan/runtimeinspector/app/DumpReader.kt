@@ -3,68 +3,86 @@ package com.vkaan.runtimeinspector.app
 import android.util.Log
 import java.io.File
 import java.util.Calendar
-import java.util.zip.ZipFile
 
 /**
- * Turns whatever getLog wrote into lines, newest window only. The dump format is unconfirmed, so
- * both a plain text file and a zip are handled, and a line with no parsable timestamp is kept.
+ * Turns whatever getLog wrote into lines, newest window only: the tail of the live buffer, dated
+ * lines inside the window and whatever undated lines follow them.
  */
 internal object DumpReader {
 
     private const val TAG = "RuntimeInspector"
 
-    private const val WINDOW_MILLIS = 15 * 60 * 1000L
+    // The platform flushes the log in ~128KiB blocks, so a line can reach the file half an hour
+    // after it happened. Shorter than that and we drop lines that only just arrived.
+    private const val WINDOW_MILLIS = 60 * 60 * 1000L
+
+    // A 13-minute window measured 182 lines, so this is a wide margin over what we need.
+    private const val TAIL_BYTES = 2 * 1024 * 1024L
 
     // logcat's threadtime prefix "08-11 13:45:02.123", with an optional year in front and a comma
     // allowed for the millis — the dump's exact shape is still unconfirmed.
     private val TIMESTAMP =
         Regex("""^\[?(?:(\d{4})-)?(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})[.,](\d{3})""")
 
-    /** Newest line already analysed, so the next pull does not re-report the same window. */
-    var lastProcessedMillis = 0L
-
     fun lines(files: List<File>, nowMillis: Long): Sequence<String> {
         var dated = 0
         var undated = 0
-        var newest = lastProcessedMillis
+        var lastKept = false
 
         // Runs while the file is still being read, so the old lines never reach the heap.
         fun keep(line: String): Boolean {
             val millis = timestampMillis(line, nowMillis)
             if (millis == null) {
                 undated++
-                // A line we cannot date may still be one we need.
-                return true
+                // Either a continuation of the line above — a stack trace, a wrapped payload — or
+                // one of the dump's section headers and the binary blocks between them. Follow what
+                // the last dated line decided.
+                return lastKept
             }
             dated++
-            newest = maxOf(newest, millis)
-            return nowMillis - millis <= WINDOW_MILLIS && millis > lastProcessedMillis
+            lastKept = nowMillis - millis <= WINDOW_MILLIS
+            return lastKept
         }
 
         val kept = files.flatMap { file ->
-            if (file.extension.equals("zip", ignoreCase = true)) zipLines(file, ::keep)
-            else file.useLines { lines -> lines.filter(::keep).toList() }
+            // The platform writes this folder too, so a file can be gone by the time we open it.
+            // exists() would be the same race one line earlier.
+            try {
+                // The zips are the platform's rotated logs — applog_20260811-133246.txt and older.
+                // Never in the window, 5MB to inflate.
+                if (file.extension.equals("zip", ignoreCase = true)) {
+                    Log.i(TAG, "Rotated log skipped: ${file.name}")
+                    emptyList()
+                } else {
+                    tailLines(file, ::keep)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Dump unreadable: ${file.name} — ${e.message}")
+                emptyList()
+            }
         }
         // Tells us whether the timestamp shapes above actually match the dump.
         Log.i(TAG, "Dump lines: kept=${kept.size} dated=$dated undated=$undated")
-        lastProcessedMillis = newest
         return kept.asSequence()
     }
 
-    // Filter and collect inside use() — a lazy sequence would outlive the closed file and slip
-    // its reads past the catch.
-    private fun zipLines(file: File, keep: (String) -> Boolean): List<String> = try {
-        ZipFile(file).use { zip ->
-            zip.entries().asSequence()
-                .filterNot { it.isDirectory }
-                .flatMap { entry -> zip.getInputStream(entry).bufferedReader().lineSequence() }
-                .filter(keep)
-                .toList()
+    /**
+     * Only the tail. The platform's buffer holds days — it grew 8983288 -> 9114351 bytes between two
+     * pulls, so it appends and the window can only be at the end. Reading all of it took 114s on the
+     * terminal.
+     */
+    private fun tailLines(file: File, keep: (String) -> Boolean): List<String> =
+        file.inputStream().use { stream ->
+            val skip = (file.length() - TAIL_BYTES).coerceAtLeast(0)
+            val reader = if (skip == 0L) {
+                stream.bufferedReader()
+            } else {
+                stream.channel.position(skip)
+                // The cut lands mid-line, and mid-character if the bytes are binary.
+                stream.bufferedReader().apply { readLine() }
+            }
+            reader.lineSequence().filter(keep).toList()
         }
-    } catch (e: Exception) {
-        Log.w(TAG, "Dump zip unreadable: ${file.name} — ${e.message}")
-        emptyList()
-    }
 
     private fun timestampMillis(line: String, nowMillis: Long): Long? {
         val m = TIMESTAMP.find(line) ?: return null

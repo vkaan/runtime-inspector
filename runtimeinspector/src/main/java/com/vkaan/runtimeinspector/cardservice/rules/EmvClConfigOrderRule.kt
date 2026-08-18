@@ -8,7 +8,7 @@ import com.vkaan.runtimeinspector.timeline.RuntimeState
 
 internal object EmvClConfigOrderRule : RiskRule {
 
-    override val id = "EMV_CL_CONFIG_BEFORE_CONFIG"
+    override val id = "CONTACTLESS_CONFIG_BEFORE_CONTACT_CONFIG"
 
     override fun evaluate(event: RuntimeEvent, before: RuntimeState, after: RuntimeState): Risk? {
         if (event !is RuntimeEvent.CardService) return null

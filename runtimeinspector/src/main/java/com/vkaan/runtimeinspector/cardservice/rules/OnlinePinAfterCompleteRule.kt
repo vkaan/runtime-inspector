@@ -9,7 +9,7 @@ import com.vkaan.runtimeinspector.timeline.RuntimeState
 
 internal object OnlinePinAfterCompleteRule : RiskRule {
 
-    override val id = "ONLINE_PIN_AFTER_COMPLETE"
+    override val id = "ONLINE_PIN_AFTER_TRANSACTION_COMPLETE"
 
     override fun evaluate(event: RuntimeEvent, before: RuntimeState, after: RuntimeState): Risk? {
         if (event !is RuntimeEvent.CardService) return null

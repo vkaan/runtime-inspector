@@ -8,7 +8,7 @@ internal class BackStackGrowthRule(
     private val ceiling: Int,
 ) : RiskRule {
 
-    override val id = "BACKSTACK_GROWTH"
+    override val id = "BACK_STACK_TOO_DEEP"
 
     override fun evaluate(event: RuntimeEvent, before: RuntimeState, after: RuntimeState): Risk? {
         if (event !is RuntimeEvent.Lifecycle) return null

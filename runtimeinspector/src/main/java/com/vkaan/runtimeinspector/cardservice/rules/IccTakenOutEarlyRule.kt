@@ -8,7 +8,7 @@ import com.vkaan.runtimeinspector.timeline.RuntimeState
 
 internal object IccTakenOutEarlyRule : RiskRule {
 
-    override val id = "ICC_TAKEN_OUT_EARLY"
+    override val id = "CARD_REMOVED_DURING_TRANSACTION"
 
     override fun evaluate(event: RuntimeEvent, before: RuntimeState, after: RuntimeState): Risk? {
         if (event !is RuntimeEvent.CardService) return null

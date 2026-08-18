@@ -8,7 +8,7 @@ internal class MemoryPressureRule(
     private val heapPercentCeiling: Int,
 ) : RiskRule {
 
-    override val id = "MEMORY_PRESSURE"
+    override val id = "LOW_MEMORY_WHILE_FOREGROUND"
 
     override fun evaluate(event: RuntimeEvent, before: RuntimeState, after: RuntimeState): Risk? {
         if (event is RuntimeEvent.Memory) {

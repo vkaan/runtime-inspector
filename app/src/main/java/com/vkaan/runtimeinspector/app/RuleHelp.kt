@@ -4,7 +4,7 @@ package com.vkaan.runtimeinspector.app
 internal data class RuleHelp(val cause: String, val fix: String)
 
 internal val RULE_HELP: Map<String, RuleHelp> = mapOf(
-    "TRANSACTION_ABANDONED" to RuleHelp(
+    "PREVIOUS_TRANSACTION_NOT_FINISHED" to RuleHelp(
         cause = "Kart servisi CONTINUE_EMV veya FULL_EMV durumundayken, yani açık bir EMV " +
             "işlemi completeEmvTxn bekliyorken, emvProcessType 1 ile yeni bir getCard geldi. " +
             "Önceki işlem hiç kapanmadı.",
@@ -20,14 +20,14 @@ internal val RULE_HELP: Map<String, RuleHelp> = mapOf(
             "kapanmasını engellemek (keepScreenOn) ve config değişimlerinde Activity'nin " +
             "yeniden yaratılmasını yönetmek de bu bulguyu bitirir.",
     ),
-    "ICC_TAKEN_OUT_EARLY" to RuleHelp(
+    "CARD_REMOVED_DURING_TRANSACTION" to RuleHelp(
         cause = "EMV işlemi hâlâ açıkken kart çekildi ya da bırakıldı (IccTakeOut). Chip " +
             "gittiği için completeEmvTxn issuer cevabını karta uygulayamaz.",
         fix = "Kart okuma ekranında kullanıcıya kartı çıkarmamasını net söyle ve completeEmvTxn " +
             "dönene kadar ekranı kapatma. Kart erken çıktıysa işlemi iptal edip baştan başlat; " +
             "yarım kalmış EMV akışını sürdürmeye çalışma.",
     ),
-    "EMV_CL_CONFIG_BEFORE_CONFIG" to RuleHelp(
+    "CONTACTLESS_CONFIG_BEFORE_CONTACT_CONFIG" to RuleHelp(
         cause = "setEMVCLConfiguration, setEMVConfiguration'dan önce çağrıldı. Temassız " +
             "kernel'i yapılandırılırken temaslı tarafın yapılandırması henüz yapılmamış — " +
             "platform bunu RemoteException ile de reddediyor.",
@@ -35,28 +35,28 @@ internal val RULE_HELP: Map<String, RuleHelp> = mapOf(
             "aynı yerde, sırayla ve bind tamamlandıktan sonra çağır; ayrı ayrı yerlerden " +
             "tetiklenen konfigürasyon çağrıları bu sırayı bozuyor.",
     ),
-    "ONLINE_PIN_AFTER_COMPLETE" to RuleHelp(
+    "ONLINE_PIN_AFTER_TRANSACTION_COMPLETE" to RuleHelp(
         cause = "completeEmvTxn'den sonra online PIN istendi. İşlem o noktada kapanmış " +
             "durumda, dolayısıyla PIN'in gideceği bir yer yok.",
         fix = "Online PIN akışını completeEmvTxn'den önce tamamla. PIN gerekip gerekmediğini " +
             "kart cevabından okuyup dallanmayı ondan sonra yap; tamamlama çağrısını akışın " +
             "en sonuna bırak.",
     ),
-    "CARD_SERVICE_CALL_BEFORE_BIND" to RuleHelp(
+    "CARD_SERVICE_CALLED_BEFORE_BIND" to RuleHelp(
         cause = "Kart servisi bind olduğunu bildirmeden önce bir API çağrısı yapıldı. Servis " +
             "bu çağrıları sessizce düşürebilir ya da reddedebilir.",
         fix = "Çağrıları bind callback'inden sonra yap; bind'i beklemeden getCard/config " +
             "çağırma. Activity'nin onCreate'inde tetikleniyorsa, bağlantı hazır olduğunda " +
             "çalışacak bir kuyruğa al.",
     ),
-    "CARD_SERVICE_CALL_AFTER_STOP" to RuleHelp(
+    "CARD_SERVICE_CALLED_AFTER_ACTIVITY_STOPPED" to RuleHelp(
         cause = "Çağrıyı yapan Activity artık RESUMED değilken kart servisine bir çağrı " +
             "gitti. Servis, host duraklamışken gelen çağrıları reddediyor.",
         fix = "İşlem çağrılarını yalnızca ekran öndeyken yap. Arka planda dönen bir " +
             "coroutine/timer çağrıyı geciktirip onPause'dan sonra gönderiyorsa, o işi " +
             "lifecycle'a bağla ve durdur.",
     ),
-    "STATE_LOSS" to RuleHelp(
+    "FRAGMENT_ADDED_WHILE_STOPPED" to RuleHelp(
         cause = "Host Activity STOPPED durumundayken Fragment oluşturuldu. Bu, klasik " +
             "\"can not perform this action after onSaveInstanceState\" hatasının kaynağı: " +
             "işlem kaydedilmiş state'e uygulanmaya çalışılıyor.",
@@ -64,7 +64,7 @@ internal val RULE_HELP: Map<String, RuleHelp> = mapOf(
             "sonrası ekran değiştiriyorsan, cevabı lifecycle-aware bir yerde topla " +
             "(ör. STARTED'a bağlı bir akış) veya işlemi ekran öne dönene kadar beklet.",
     ),
-    "BACKSTACK_GROWTH" to RuleHelp(
+    "BACK_STACK_TOO_DEEP" to RuleHelp(
         cause = "Back stack tavanı aştı. Aynı ekranlar üst üste yığılıyor, yani geri tuşu " +
             "kullanıcıyı beklediği yere götürmüyor ve bellek boşuna doluyor.",
         fix = "Aynı ekrana tekrar giderken yeni instance yaratmak yerine mevcut olanı kullan: " +
@@ -91,7 +91,7 @@ internal val RULE_HELP: Map<String, RuleHelp> = mapOf(
             "application-scope listener. Kayıt yaptığın her şeyi (broadcast receiver, " +
             "observer, callback) onDestroy'da geri al.",
     ),
-    "MEMORY_PRESSURE" to RuleHelp(
+    "LOW_MEMORY_WHILE_FOREGROUND" to RuleHelp(
         cause = "Heap sınırına yaklaştı ya da sistem kritik seviyede bellek uyarısı verdi. " +
             "Bu noktadan sonra GC sürekli çalışır ve OutOfMemoryError yakındır.",
         fix = "Büyük nesneleri küçült ya da erken bırak: bitmap'leri ekran boyutuna göre " +
@@ -105,7 +105,7 @@ internal val RULE_HELP: Map<String, RuleHelp> = mapOf(
             "çökmenin yarım işlem bırakmaması için, açılışta yarım kalmış işlemi tespit " +
             "edip iptal eden bir kurtarma yolu bırak.",
     ),
-    "RECREATION_MID_FLOW" to RuleHelp(
+    "ACTIVITY_RECREATED_MID_FLOW" to RuleHelp(
         cause = "Açık bir akış varken Activity bir konfigürasyon değişikliği için yok edildi " +
             "(dönme, dil, tema, ekran boyutu). Yeniden yaratılan ekran işlemin state'ini " +
             "kaybedebilir.",
@@ -113,7 +113,7 @@ internal val RULE_HELP: Map<String, RuleHelp> = mapOf(
             "onSaveInstanceState ile geri yükle. Ödeme ekranı için ilgili konfigürasyon " +
             "değişimlerini configChanges ile kendin ele almak da bir seçenek.",
     ),
-    "INTERRUPTED_FLOW" to RuleHelp(
+    "APP_BACKGROUNDED_MID_FLOW" to RuleHelp(
         cause = "Açık bir navigasyon akışı varken uygulama arka plana düştü. Kullanıcı " +
             "döndüğünde akış yarım halde bekliyor.",
         fix = "Arka plana düşerken akışı ya iptal et ya da kaldığı yerden sürdürülebilir " +
@@ -134,7 +134,7 @@ internal val RULE_HELP: Map<String, RuleHelp> = mapOf(
             "çift çekim olmaz. Cevapsız kalan işlem için sonucu sorgulayan bir " +
             "reconciliation adımı ekle.",
     ),
-    "NETWORK_FLAPPING" to RuleHelp(
+    "NETWORK_DROPPING_REPEATEDLY" to RuleHelp(
         cause = "Bağlantı kısa aralıklarla birçok kez koptu. Zayıf sinyal ya da sürekli " +
             "yeniden bağlanan bir arayüz; bu ortamda tek denemeye güvenilmez.",
         fix = "Yeniden deneme politikasını üstel geri çekilmeyle kur ve her denemede aynı " +

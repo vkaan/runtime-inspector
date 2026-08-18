@@ -2,7 +2,10 @@ package com.vkaan.runtimeinspector.app
 
 import android.util.Log
 import java.io.File
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 /**
  * Turns whatever getLog wrote into lines, newest window only: the tail of the live buffer, dated
@@ -14,20 +17,31 @@ internal object DumpReader {
 
     // The platform flushes the log in ~128KiB blocks, so a line can reach the file half an hour
     // after it happened. Shorter than that and we drop lines that only just arrived.
-    private const val WINDOW_MILLIS = 60 * 60 * 1000L
+    const val WINDOW_MILLIS = 60 * 60 * 1000L
 
     // A 13-minute window measured 182 lines, so this is a wide margin over what we need.
     private const val TAIL_BYTES = 2 * 1024 * 1024L
+
+    private val STAMP = SimpleDateFormat("MM-dd HH:mm:ss", Locale.US)
 
     // logcat's threadtime prefix "08-11 13:45:02.123", with an optional year in front and a comma
     // allowed for the millis — the dump's exact shape is still unconfirmed.
     private val TIMESTAMP =
         Regex("""^\[?(?:(\d{4})-)?(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})[.,](\d{3})""")
 
-    fun lines(files: List<File>, nowMillis: Long): Sequence<String> {
+    /**
+     * [windowMillis] is how far back a line may be stamped. A hand-triggered read passes
+     * [Long.MAX_VALUE]: whatever is in the tail is what the user asked to see, however old.
+     */
+    fun lines(
+        files: List<File>,
+        nowMillis: Long,
+        windowMillis: Long = WINDOW_MILLIS,
+    ): Sequence<String> {
         var dated = 0
         var undated = 0
         var lastKept = false
+        var newest = 0L
 
         // Runs while the file is still being read, so the old lines never reach the heap.
         fun keep(line: String): Boolean {
@@ -40,7 +54,8 @@ internal object DumpReader {
                 return lastKept
             }
             dated++
-            lastKept = nowMillis - millis <= WINDOW_MILLIS
+            newest = maxOf(newest, millis)
+            lastKept = nowMillis - millis <= windowMillis
             return lastKept
         }
 
@@ -61,8 +76,14 @@ internal object DumpReader {
                 emptyList()
             }
         }
-        // Tells us whether the timestamp shapes above actually match the dump.
-        Log.i(TAG, "Dump lines: kept=${kept.size} dated=$dated undated=$undated")
+        // newest= is the tell when kept=0: the platform flushes late, so the dump's freshest line
+        // can be older than the window even though the transaction already happened.
+        val newestStamp =
+            if (newest == 0L) "none" else STAMP.format(Date(newest))
+        Log.i(
+            TAG,
+            "Dump lines: kept=${kept.size} dated=$dated undated=$undated newest=$newestStamp",
+        )
         return kept.asSequence()
     }
 

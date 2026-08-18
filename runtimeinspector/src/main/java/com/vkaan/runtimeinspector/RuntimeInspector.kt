@@ -36,6 +36,10 @@ object RuntimeInspector {
 
     const val SERVICE_PACKAGE = "com.vkaan.runtimeinspector"
     const val SERVICE_CLASS = "com.vkaan.runtimeinspector.app.InspectorService"
+
+    /** Which finding a tapped notification was for; read by the inspector app's Activity. */
+    const val EXTRA_RULE_ID = "com.vkaan.runtimeinspector.extra.RULE_ID"
+    const val EXTRA_SUBJECT = "com.vkaan.runtimeinspector.extra.SUBJECT"
     private const val KEY_EVENT = "event"
     private const val UNMATCHED_LOG_LIMIT = 50
 

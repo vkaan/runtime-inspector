@@ -28,21 +28,25 @@ import java.util.Locale
  */
 class MainActivity : Activity() {
 
-    // Token's own palette, read off uicomponents_v2.aar. Names are theirs, so a value can be
-    // checked against res/values/values.xml in that AAR.
+    // Token's palette, all from uicomponents_v2.aar. Brand is the opulent-blue ramp.
     private companion object {
-        const val BG = 0xFFEFF1F5.toInt() // bg_primary — gray_100
-        const val SURFACE = 0xFFFFFFFF.toInt() // bg_primary_alt — base_white_1000
-        const val BRAND = 0xFF3275AE.toInt() // bg_brand / text_brand_primary — sky_blue_1000
-        const val BRAND_STRONG = 0xFF1F4D72.toInt() // text_brand_strong — sky_blue_1300
-        const val TEXT = 0xFF202328.toInt() // text_primary — gray_1500
-        const val MUTED = 0xFF667080.toInt() // text_tertiary — gray_1000
-        const val HAIRLINE = 0xFFD7D9E5.toInt() // gray_300
+        const val BG = 0xFFEFF1F5.toInt() // gray_100
+        const val SURFACE = 0xFFFFFFFF.toInt() // white
+        const val BRAND = 0xFF114CEE.toInt() // core_opulent_blue_500
+        const val BRAND_STRONG = 0xFF114CEE.toInt() // core_opulent_blue_500
+        const val TEXT = 0xFF202328.toInt() // gray_1500
+        const val MUTED = 0xFF667080.toInt() // gray_1000
+        const val HAIRLINE = 0xFFC0C4D3.toInt() // gray_400
         const val ERROR = 0xFFC83524.toInt() // red_1000
-        const val WARNING = 0xFFBF7A2C.toInt() // text_status_warning_primary — orange_800
+        const val WARNING = 0xFFBF7A2C.toInt() // orange_800
     }
 
     private val clock = SimpleDateFormat("HH:mm:ss", Locale.US)
+
+    // Token's UI font (their design system's tokenui_font_family_body). The code only ever asks
+    // for normal or bold, so two weights cover it.
+    private val interRegular by lazy { resources.getFont(R.font.inter_regular) }
+    private val interBold by lazy { resources.getFont(R.font.inter_bold) }
 
     private lateinit var column: LinearLayout
 
@@ -168,6 +172,7 @@ class MainActivity : Activity() {
     private fun header(risks: List<Risk>): View = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         addView(label("Runtime Inspector", 24f, BRAND_STRONG, Typeface.BOLD))
+        addView(divider())
         val errors = risks.count { it.severity == Risk.Severity.ERROR }
         addView(
             label(
@@ -343,7 +348,7 @@ class MainActivity : Activity() {
         this.text = text
         setTextColor(color)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
-        setTypeface(Typeface.SANS_SERIF, style)
+        typeface = if (style == Typeface.BOLD) interBold else interRegular
     }
 
     private fun filledButton(text: String, onClick: () -> Unit): Button = button(text, onClick).apply {
@@ -369,7 +374,7 @@ class MainActivity : Activity() {
         this.text = text
         isAllCaps = false
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-        setTypeface(Typeface.SANS_SERIF, Typeface.BOLD)
+        typeface = interBold
         setPadding(dp(16), dp(12), dp(16), dp(12))
         minHeight = dp(48)
         setOnClickListener { onClick() }

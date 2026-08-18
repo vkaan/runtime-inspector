@@ -1,6 +1,8 @@
 package com.vkaan.runtimeinspector.app
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.vkaan.runtimeinspector.RuntimeInspector
 import com.tokeninc.tsystemwrapper.TSystemServiceBinder
@@ -30,6 +32,23 @@ internal object PlatformLog {
     /** Size of the buffer at the last read, so an unflushed pull can be skipped. */
     @Volatile
     private var lastBufferBytes = 0L
+
+    // The block lands minutes after the transaction, so a pull that finds nothing waits and tries
+    // again on a growing gap: the user runs a card test, walks away, and the RISK lines arrive on
+    // their own once SUNMI flushes. The gaps grow because every attempt is a full getLog — ~14 MB
+    // copied to /sdcard — so an idle terminal isn't rewriting that every minute.
+    private val RETRY_DELAYS_MILLIS = longArrayOf(15_000, 30_000, 60_000, 120_000, 300_000)
+
+    private val retryHandler = Handler(Looper.getMainLooper())
+
+    // Where we are on the ladder above. Reset by a fresh pull, walked by the no-growth branch.
+    @Volatile
+    private var retryIndex = 0
+
+    // A retry fires long after pull() returned, when the calling Service may be gone, so it binds
+    // through the application context instead.
+    @Volatile
+    private var appContext: Context? = null
 
     /**
      * Capture has to be on before the transaction happens, not when the dump is asked for, so this
@@ -61,6 +80,14 @@ internal object PlatformLog {
      * re-running the rules on the window we already have is the point.
      */
     fun pull(context: Context, force: Boolean = false) {
+        // A fresh pull abandons whatever the last ladder was still chasing and starts it over.
+        retryHandler.removeCallbacksAndMessages(null)
+        retryIndex = 0
+        appContext = context.applicationContext
+        doPull(context, force)
+    }
+
+    private fun doPull(context: Context, force: Boolean) {
         val destDir = File(DEST_DIR).apply { mkdirs() }
         Log.i(TAG, "getLog: binding to TSystem, destDir=${destDir.absolutePath} force=$force")
 
@@ -130,6 +157,7 @@ internal object PlatformLog {
         val bufferBytes = files.firstOrNull { it.name == BUFFER_NAME }?.length() ?: 0L
         if (!force && bufferBytes > 0L && bufferBytes == lastBufferBytes) {
             Log.i(TAG, "getLog: $BUFFER_NAME still $bufferBytes bytes — nothing flushed, not read.")
+            scheduleRetry()
             return
         }
         lastBufferBytes = bufferBytes
@@ -142,6 +170,23 @@ internal object PlatformLog {
         ).toList()
         keepOnlyTrimmed(destDir, files, kept)
         RuntimeInspector.readCardServiceLines(kept.asSequence())
+    }
+
+    /**
+     * The buffer hadn't grown, so the transaction isn't in the file yet. Wait the next gap and try
+     * again — a read that finally sees growth just doesn't come back here, so the ladder ends on its
+     * own. Only one attempt is ever pending.
+     */
+    private fun scheduleRetry() {
+        val ctx = appContext ?: return
+        if (retryIndex >= RETRY_DELAYS_MILLIS.size) {
+            Log.i(TAG, "getLog: buffer never grew after ${RETRY_DELAYS_MILLIS.size} tries — waiting for the next unbind.")
+            return
+        }
+        val delay = RETRY_DELAYS_MILLIS[retryIndex++]
+        // Each attempt is a full getLog: ~14 MB copied to /sdcard.
+        Log.i(TAG, "getLog: retry $retryIndex/${RETRY_DELAYS_MILLIS.size} in ${delay / 1000}s.")
+        retryHandler.postDelayed({ doPull(ctx, force = false) }, delay)
     }
 
     /**

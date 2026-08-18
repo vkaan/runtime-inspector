@@ -8,7 +8,7 @@ import com.vkaan.runtimeinspector.timeline.RuntimeState
 
 internal object TransactionAbandonedRule : RiskRule {
 
-    override val id = "TRANSACTION_ABANDONED"
+    override val id = "PREVIOUS_TRANSACTION_NOT_FINISHED"
 
     override fun evaluate(event: RuntimeEvent, before: RuntimeState, after: RuntimeState): Risk? {
         if (event !is RuntimeEvent.CardService) return null

@@ -9,7 +9,7 @@ import com.vkaan.runtimeinspector.timeline.RuntimeState
 
 internal object CardServiceCallAfterStopRule : RiskRule {
 
-    override val id = "CARD_SERVICE_CALL_AFTER_STOP"
+    override val id = "CARD_SERVICE_CALLED_AFTER_ACTIVITY_STOPPED"
 
     override fun evaluate(event: RuntimeEvent, before: RuntimeState, after: RuntimeState): Risk? {
         if (event !is RuntimeEvent.CardService) return null

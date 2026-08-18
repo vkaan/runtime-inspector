@@ -7,7 +7,7 @@ import com.vkaan.runtimeinspector.timeline.RuntimeState
 
 internal object RecreationMidFlowRule : RiskRule {
 
-    override val id = "RECREATION_MID_FLOW"
+    override val id = "ACTIVITY_RECREATED_MID_FLOW"
 
     override fun evaluate(event: RuntimeEvent, before: RuntimeState, after: RuntimeState): Risk? {
         if (event !is RuntimeEvent.Lifecycle) return null

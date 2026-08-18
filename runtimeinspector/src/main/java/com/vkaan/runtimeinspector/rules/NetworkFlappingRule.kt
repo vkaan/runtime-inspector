@@ -13,7 +13,7 @@ internal class NetworkFlappingRule(
     private val windowSeconds: Int,
 ) : RiskRule {
 
-    override val id = "NETWORK_FLAPPING"
+    override val id = "NETWORK_DROPPING_REPEATEDLY"
 
     override fun evaluate(event: RuntimeEvent, before: RuntimeState, after: RuntimeState): Risk? {
         if (event !is RuntimeEvent.Network) return null

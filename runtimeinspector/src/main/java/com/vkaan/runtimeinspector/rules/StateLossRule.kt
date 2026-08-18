@@ -7,7 +7,7 @@ import com.vkaan.runtimeinspector.timeline.RuntimeState
 
 internal object StateLossRule : RiskRule {
 
-    override val id = "STATE_LOSS"
+    override val id = "FRAGMENT_ADDED_WHILE_STOPPED"
 
     override fun evaluate(event: RuntimeEvent, before: RuntimeState, after: RuntimeState): Risk? {
         if (event !is RuntimeEvent.Lifecycle) return null

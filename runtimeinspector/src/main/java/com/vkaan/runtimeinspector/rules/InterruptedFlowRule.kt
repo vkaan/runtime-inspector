@@ -5,7 +5,7 @@ import com.vkaan.runtimeinspector.timeline.RuntimeState
 
 internal object InterruptedFlowRule : RiskRule {
 
-    override val id = "INTERRUPTED_FLOW"
+    override val id = "APP_BACKGROUNDED_MID_FLOW"
 
     override fun evaluate(event: RuntimeEvent, before: RuntimeState, after: RuntimeState): Risk? {
         if (event !is RuntimeEvent.Process) return null

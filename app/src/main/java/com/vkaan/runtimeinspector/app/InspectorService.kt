@@ -75,7 +75,7 @@ class InspectorService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Lets a bench trigger the pull straight from adb, with no host app and no screen tap.
-        if (intent?.action == ACTION_INSPECT) PlatformLog.pull(this)
+        if (intent?.action == ACTION_INSPECT) PlatformLog.pull(this, force = true)
         return START_STICKY
     }
 

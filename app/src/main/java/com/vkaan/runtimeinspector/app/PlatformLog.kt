@@ -56,9 +56,13 @@ internal object PlatformLog {
         if (!bound) Log.e(TAG, "capture: TSystem bind refused — is the TSystem app installed?")
     }
 
-    fun pull(context: Context) {
+    /**
+     * [force] skips the "has the buffer grown" check: someone asked for this read by hand, so
+     * re-running the rules on the window we already have is the point.
+     */
+    fun pull(context: Context, force: Boolean = false) {
         val destDir = File(DEST_DIR).apply { mkdirs() }
-        Log.i(TAG, "getLog: binding to TSystem, destDir=${destDir.absolutePath}")
+        Log.i(TAG, "getLog: binding to TSystem, destDir=${destDir.absolutePath} force=$force")
 
         val bound = TSystemServiceBinder.bind(context, object : IOnTSystemBound {
             override fun onConnected() {
@@ -69,12 +73,12 @@ internal object PlatformLog {
                     object : IGetLogListener {
                         override fun onSuccess(result: String, code: Int) {
                             Log.i(TAG, "getLog onSuccess: result=\"$result\" code=$code")
-                            report(destDir)
+                            report(destDir, force)
                         }
 
                         override fun onError(error: Int) {
                             Log.e(TAG, "getLog onError: $error")
-                            report(destDir)
+                            report(destDir, force)
                         }
                     },
                 )
@@ -98,13 +102,13 @@ internal object PlatformLog {
      * getLog's listener calls this on a binder thread, so a throw here breaks TSystem's transaction
      * instead of failing the pull — nothing gets out.
      */
-    private fun report(destDir: File) = try {
-        readAndReport(destDir)
+    private fun report(destDir: File, force: Boolean) = try {
+        readAndReport(destDir, force)
     } catch (e: Exception) {
         Log.e(TAG, "getLog: report failed — ${e.message}", e)
     }
 
-    private fun readAndReport(destDir: File) {
+    private fun readAndReport(destDir: File, force: Boolean) {
         // getLog answers with the directory it wrote to — result="/sdcard/Download/runtimeinspector"
         // — so there is no reason to read the rest of Download.
         // Our own output is in here too — reading it back would replay the last window as new events.
@@ -124,12 +128,18 @@ internal object PlatformLog {
         // The platform flushes in ~128KiB blocks: 8983288 -> 9114351 -> 9245366 bytes over an
         // afternoon. Same size means the transaction we just watched is not in the file yet.
         val bufferBytes = files.firstOrNull { it.name == BUFFER_NAME }?.length() ?: 0L
-        if (bufferBytes > 0L && bufferBytes == lastBufferBytes) {
+        if (!force && bufferBytes > 0L && bufferBytes == lastBufferBytes) {
             Log.i(TAG, "getLog: $BUFFER_NAME still $bufferBytes bytes — nothing flushed, not read.")
             return
         }
         lastBufferBytes = bufferBytes
-        val kept = DumpReader.lines(files, System.currentTimeMillis()).toList()
+        // A hand-triggered read takes the whole tail: the platform flushes late enough that the
+        // window would throw away the transaction the user is standing there waiting for.
+        val kept = DumpReader.lines(
+            files,
+            System.currentTimeMillis(),
+            windowMillis = if (force) Long.MAX_VALUE else DumpReader.WINDOW_MILLIS,
+        ).toList()
         keepOnlyTrimmed(destDir, files, kept)
         RuntimeInspector.readCardServiceLines(kept.asSequence())
     }

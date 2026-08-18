@@ -2,9 +2,12 @@ package com.vkaan.runtimeinspector.report
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import com.vkaan.runtimeinspector.RuntimeInspector
 import com.vkaan.runtimeinspector.rules.Risk
 
 internal class RiskNotifier (
@@ -45,10 +48,30 @@ internal class RiskNotifier (
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
+            .setContentIntent(openFinding(risk))
             .build()
 
         // Same dedup key -> same notification ID, so a repeat updates the existing
         // notification with its new count instead of stacking another one.
         manager.notify(risk.dedupKey.hashCode(), notification)
+    }
+
+    /**
+     * Opens whatever the inspector app's launcher Activity is, carrying which finding was tapped.
+     * Resolved through the package manager so this module needs no reference to that Activity.
+     */
+    private fun openFinding(risk: Risk): PendingIntent? {
+        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+            ?: return null
+        launch.putExtra(RuntimeInspector.EXTRA_RULE_ID, risk.ruleId)
+        launch.putExtra(RuntimeInspector.EXTRA_SUBJECT, risk.subject)
+        launch.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        // One PendingIntent per finding, or they would all carry the first one's extras.
+        return PendingIntent.getActivity(
+            context,
+            risk.dedupKey.hashCode(),
+            launch,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
     }
 }

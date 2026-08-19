@@ -150,7 +150,7 @@ When a rule fires, a `RISK` line appears in the same stream (`Log.w`, or `Log.e`
 `ERROR` severity):
 
 ```
-RISK [WARNING] RECREATION_MID_FLOW MainActivity#154959438 — Activity destroyed for a config
+RISK [WARNING] ACTIVITY_RECREATED_MID_FLOW MainActivity#154959438 — Activity destroyed for a config
 change while its back stack held 1 entries — in-flight callbacks and results can be lost;
 verify state restoration.
 ```
@@ -174,8 +174,13 @@ RuntimeInspector.inspect()
 Sends the request across the binder; the service calls Token's `getLog`, reads the dump and
 runs the card service rules over it. `unbind()` does the same at the end of a session, which
 is the normal path — `inspect()` is for a check partway through. The inspector app's own
-screen also has an **İncele** button, so the platform call can be tried with no host app at
-all, and `am startservice … -a com.vkaan.runtimeinspector.INSPECT` does it from adb.
+screen also has an **İncele** button (a force read of the whole tail) and a **Yenile** button
+that just re-renders the current findings, so the platform call can be tried with no host app
+at all, and `am startservice … -a com.vkaan.runtimeinspector.INSPECT` does the same from adb.
+
+The screen itself lists the findings as tap-to-expand cards — first/last seen, sequence and
+occurrence count — each with a **Daha fazla bilgi** button that opens a per-rule Turkish
+explanation (`RuleHelp.kt`).
 
 ## Risk rules
 
@@ -189,26 +194,26 @@ still shows up in the log line as `Subject#instanceId`.
 
 | Rule | Severity | Fires when |
 |---|---|---|
-| `STATE_LOSS` | ERROR | a Fragment is created while its host Activity is `STOPPED` — the signature of a commit after `onSaveInstanceState` |
+| `FRAGMENT_ADDED_WHILE_STOPPED` | ERROR | a Fragment is created while its host Activity is `STOPPED` — the signature of a commit after `onSaveInstanceState` |
 | `MID_FLOW_CRASH` | ERROR / WARNING | an uncaught exception kills the app; ERROR if a flow was open |
-| `MEMORY_PRESSURE` | ERROR / WARNING | `onTrimMemory(RUNNING_CRITICAL)` while foregrounded / heap over the configured ceiling (default 85%) |
+| `LOW_MEMORY_WHILE_FOREGROUND` | ERROR / WARNING | `onTrimMemory(RUNNING_CRITICAL)` while foregrounded / heap over the configured ceiling (default 85%) |
 | `NETWORK_LOSS` | WARNING / INFO | the default network is lost while foregrounded; WARNING if a flow was open |
-| `NETWORK_FLAPPING` | WARNING | the network is lost 3 times (configurable) within 60s (configurable) — the link itself is unstable |
-| `RECREATION_MID_FLOW` | WARNING | an Activity is destroyed by a config change while its back stack is non-empty |
+| `NETWORK_DROPPING_REPEATEDLY` | WARNING | the network is lost 3 times (configurable) within 60s (configurable) — the link itself is unstable |
+| `ACTIVITY_RECREATED_MID_FLOW` | WARNING | an Activity is destroyed by a config change while its back stack is non-empty |
 | `ORPHAN_FRAGMENT` | WARNING | a Fragment is still alive 1s after its host Activity was destroyed |
 | `ACTIVITY_LEAK` | WARNING | across 3 destroy-time heap samples: live Activity count flat, heap climbing ≥ 1MB per step |
 | `DUPLICATE_SCREEN` | WARNING | two or more live instances of the same Activity class exist at once |
-| `BACKSTACK_GROWTH` | WARNING | back stack depth reaches the configured ceiling (default 10) |
-| `INTERRUPTED_FLOW` | INFO | the app is backgrounded while a back stack is non-empty |
+| `BACK_STACK_TOO_DEEP` | WARNING | back stack depth reaches the configured ceiling (default 10) |
+| `APP_BACKGROUNDED_MID_FLOW` | INFO | the app is backgrounded while a back stack is non-empty |
 | `SCREEN_OFF_MID_FLOW` | WARNING | the screen turns off while foregrounded with a flow open — idle timeout mid-interaction |
 | `POWER_LOSS_MID_FLOW` | ERROR / WARNING | the device shuts down (ERROR) or reports low battery (WARNING) while a flow is open |
 | `TRANSACTION_INTERRUPTED` | ERROR / WARNING | a crash (ERROR), screen-off or Activity recreation (WARNING) lands while the card service has a transaction open |
-| `CARD_SERVICE_CALL_BEFORE_BIND` | ERROR | a card service API is called before the service reports a bound client |
-| `CARD_SERVICE_CALL_AFTER_STOP` | ERROR | a card service API is called while the host Activity is paused, stopped or destroyed |
-| `EMV_CL_CONFIG_BEFORE_CONFIG` | ERROR | `setEMVCLConfiguration` is called before `setEMVConfiguration` |
-| `ONLINE_PIN_AFTER_COMPLETE` | ERROR | an online PIN is requested after `completeEmvTxn` |
-| `ICC_TAKEN_OUT_EARLY` | ERROR | `takeOutICC` is called while an EMV transaction still needs completing |
-| `TRANSACTION_ABANDONED` | ERROR | a new card read starts while the previous transaction still needs completing |
+| `CARD_SERVICE_CALLED_BEFORE_BIND` | ERROR | a card service API is called before the service reports a bound client |
+| `CARD_SERVICE_CALLED_AFTER_ACTIVITY_STOPPED` | ERROR | a card service API is called while the host Activity is paused, stopped or destroyed |
+| `CONTACTLESS_CONFIG_BEFORE_CONTACT_CONFIG` | ERROR | `setEMVCLConfiguration` is called before `setEMVConfiguration` |
+| `ONLINE_PIN_AFTER_TRANSACTION_COMPLETE` | ERROR | an online PIN is requested after `completeEmvTxn` |
+| `CARD_REMOVED_DURING_TRANSACTION` | ERROR | `takeOutICC` is called while an EMV transaction still needs completing |
+| `PREVIOUS_TRANSACTION_NOT_FINISHED` | ERROR | a new card read starts while the previous transaction still needs completing |
 
 ### Runtime state
 
@@ -233,9 +238,9 @@ RuntimeInspector.init(
     RuntimeInspector.Config(
         enabled = true,           // false in the service: it collects nothing itself
         notifyOnRisk = true,      // status-bar notification per finding
-        backStackCeiling = 10,    // BACKSTACK_GROWTH threshold
-        heapPercentCeiling = 85,  // MEMORY_PRESSURE heap threshold (%)
-        networkFlapCount = 3,     // NETWORK_FLAPPING: losses within the window (max 10)
+        backStackCeiling = 10,    // BACK_STACK_TOO_DEEP threshold
+        heapPercentCeiling = 85,  // LOW_MEMORY_WHILE_FOREGROUND heap threshold (%)
+        networkFlapCount = 3,     // NETWORK_DROPPING_REPEATEDLY: losses within the window (max 10)
         networkFlapWindowSeconds = 60,
         cardServicePatterns = CARD_SERVICE_PATTERNS,  // line pattern -> API + state
         cardServiceEnabled = false,   // legacy logcat reader; see below
@@ -264,13 +269,28 @@ service:
 
 1. binds TSystem through `TSystemServiceBinder`
 2. calls `getLog(0, destDir, listener)`, where 0 means app logs — the only ones we listed
-3. reads whatever landed in `destDir`, keeps the last fifteen minutes, skips anything already read by an
-   earlier pull, and runs the rest through `CardServiceLogState` one line at a time
+3. reads only the last 2 MB tail of each plain dump file (the rotated `.zip` archives are
+   skipped outright), keeps the last hour, and runs the rest through `CardServiceLogState`
+   one line at a time
 
 `getLog` takes no time range, so the file itself still goes as far back as the platform kept
-it; the trimming is ours. A line whose timestamp we cannot parse is kept rather than dropped,
-so every pull logs `Dump lines: kept=… dated=… undated=…` — `dated=0` means the dump's
-timestamp format is not one of the two `DumpReader` knows, and nothing is being trimmed.
+it; the tail read and the hour window are ours. A line whose timestamp we cannot parse follows
+the verdict of the last dated line before it, so every pull logs
+`Dump lines: kept=… dated=… undated=… newest=…` — `newest=` is the timestamp of the freshest
+dated line, which is what explains a `kept=0`: the platform flushes late, so the dump's newest
+line can already be older than the window even though the transaction just happened.
+
+**Growth check and retry.** `getLog` copies the whole ~14 MB dump every time, so an automatic
+pull first compares the live buffer's size against the last read; if it has not grown, nothing
+new was flushed and the read is skipped. Rather than give up, it then retries on a growing
+backoff — 15s, 30s, 60s, 2min, 5min — so a card test run and walked away from still lands its
+`RISK` lines once the platform flushes, without rewriting 14 MB every minute on an idle
+terminal. A fresh pull resets the ladder.
+
+**Force reads take the whole tail.** A hand-triggered read — the **İncele** button or the adb
+action — passes `force = true`, which skips both the growth check and the hour window: it
+analyses the entire tail regardless of age, because the platform flushes late enough that the
+window would otherwise throw away the transaction the user is standing there waiting for.
 
 A pattern names the `CardServiceApi` the line stands for and, when the line also moves the
 transaction on, the `CardServiceState` it moves to. That is what lets
@@ -303,7 +323,9 @@ regardless of this setting.
 
 The library declares **no notification permission**, so nothing is added to the host's
 merged manifest. Findings are now posted by the inspector app, which declares
-`POST_NOTIFICATIONS` itself.
+`POST_NOTIFICATIONS` itself. Tapping a finding notification opens the inspector app's screen
+with that finding's card already expanded — the `PendingIntent` resolves the launcher Activity
+through the package manager, so the library needs no reference to it.
 
 Separately from findings, the inspector app shows one permanent notification for its
 foreground service. That one sits on its own channel at `IMPORTANCE_LOW`, so it stays silent
@@ -362,9 +384,10 @@ app/                             the APK
 └── com/vkaan/runtimeinspector/app/
     ├── InspectorService.kt      foreground service, holds the binder
     ├── BootReceiver.kt          starts it at power-on
-    ├── MainActivity.kt          one screen, one İncele button
-    ├── PlatformLog.kt           TSystem bind + getLog
-    ├── DumpReader.kt            dump -> lines, last 15 min, unread only
+    ├── MainActivity.kt          findings list, tap-to-expand cards, help view, İncele/Yenile
+    ├── RuleHelp.kt              per-rule Turkish cause/fix text for the detail screen
+    ├── PlatformLog.kt           TSystem bind + getLog, growth check + retry backoff
+    ├── DumpReader.kt            dump -> lines, 2 MB tail, last hour
     └── CardServicePatterns.kt   the nine patterns
 ```
 

@@ -194,6 +194,10 @@ class MainActivity : Activity() {
         )
         addView(
             outlinedButton("Yenile") { render() },
+            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { rightMargin = dp(10) },
+        )
+        addView(
+            outlinedButton("Temizle") { PlatformLog.clear(); render() },
             LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f),
         )
     }

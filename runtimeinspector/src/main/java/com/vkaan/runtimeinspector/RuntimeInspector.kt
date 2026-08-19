@@ -195,6 +195,8 @@ object RuntimeInspector {
     @JvmStatic
     fun risks(): List<Risk> = if (initialized) timeline.risks() else emptyList()
 
+    fun clearRisks() { if (initialized) timeline.clearRisks() }
+
     /** Ask the inspector app to pull the platform log dump and run the card service rules on it. */
     @JvmStatic
     fun inspect() {

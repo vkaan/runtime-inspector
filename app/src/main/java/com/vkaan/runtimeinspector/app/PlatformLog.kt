@@ -33,6 +33,10 @@ internal object PlatformLog {
     @Volatile
     private var lastBufferBytes = 0L
 
+    /** How far into the buffer İncele has already run the rules — the baseline Temizle moves. */
+    @Volatile
+    private var fedBytes = 0L
+
     // The block lands minutes after the transaction, so a pull that finds nothing waits and tries
     // again on a growing gap: the user runs a card test, walks away, and the RISK lines arrive on
     // their own once SUNMI flushes. The gaps grow because every attempt is a full getLog — ~14 MB
@@ -85,6 +89,17 @@ internal object PlatformLog {
         retryIndex = 0
         appContext = context.applicationContext
         doPull(context, force)
+    }
+
+    /**
+     * Temizle: drop the shown findings and baseline the buffer here, so the next İncele reads only
+     * the lines that arrive after this. The buffer itself is SUNMI's and can't be wiped, so this
+     * moves where we start reading instead. The archived window is deleted too.
+     */
+    fun clear() {
+        fedBytes = lastBufferBytes
+        RuntimeInspector.clearRisks()
+        File(DEST_DIR, TRIMMED_NAME).delete()
     }
 
     private fun doPull(context: Context, force: Boolean) {
@@ -161,13 +176,17 @@ internal object PlatformLog {
             return
         }
         lastBufferBytes = bufferBytes
-        // A hand-triggered read takes the whole tail: the platform flushes late enough that the
-        // window would throw away the transaction the user is standing there waiting for.
-        val kept = DumpReader.lines(
-            files,
-            System.currentTimeMillis(),
-            windowMillis = if (force) Long.MAX_VALUE else DumpReader.WINDOW_MILLIS,
-        ).toList()
+        // İncele reads only what the buffer gained since the last read or the last Temizle, so the
+        // old lines still sitting in the buffer aren't re-reported. The auto pull keeps its window.
+        val kept = if (force) {
+            if (bufferBytes < fedBytes) fedBytes = 0L // Buffer rotated — baseline no longer valid.
+            val buffer = files.firstOrNull { it.name == BUFFER_NAME }
+            val delta = if (buffer != null) DumpReader.linesFrom(buffer, fedBytes) else emptyList()
+            fedBytes = bufferBytes
+            delta
+        } else {
+            DumpReader.lines(files, System.currentTimeMillis(), DumpReader.WINDOW_MILLIS).toList()
+        }
         keepOnlyTrimmed(destDir, files, kept)
         RuntimeInspector.readCardServiceLines(kept.asSequence())
     }

@@ -88,6 +88,25 @@ internal object DumpReader {
     }
 
     /**
+     * Everything the buffer gained since [fromByte] — the slice a manual İncele runs the rules on.
+     * No time window: whatever was appended after the last read (or the last Temizle) is new, however
+     * it is stamped. [fromByte] is floored to the tail so a first read (fromByte 0) still can't drag
+     * in days of history.
+     */
+    fun linesFrom(file: File, fromByte: Long): List<String> =
+        file.inputStream().use { stream ->
+            val start = maxOf(fromByte, file.length() - TAIL_BYTES).coerceIn(0, file.length())
+            val reader = if (start == 0L) {
+                stream.bufferedReader()
+            } else {
+                stream.channel.position(start)
+                // The cut lands mid-line; drop the partial one.
+                stream.bufferedReader().apply { readLine() }
+            }
+            reader.readLines()
+        }
+
+    /**
      * Only the tail. The platform's buffer holds days — it grew 8983288 -> 9114351 bytes between two
      * pulls, so it appends and the window can only be at the end. Reading all of it took 114s on the
      * terminal.

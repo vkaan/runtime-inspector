@@ -46,4 +46,6 @@ internal class Timeline(
     fun state(): RuntimeState = synchronized(lock) { state }
 
     fun risks(): List<Risk> = riskEngine.snapshot()
+
+    fun clearRisks() = riskEngine.clear()
 }

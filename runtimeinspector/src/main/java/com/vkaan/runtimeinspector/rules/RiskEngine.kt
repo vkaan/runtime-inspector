@@ -103,4 +103,6 @@ internal class RiskEngine(
     }
 
     fun snapshot(): List<Risk> = synchronized(lock) { findings.values.toList() }
+
+    fun clear() = synchronized(lock) { findings.clear() }
 }

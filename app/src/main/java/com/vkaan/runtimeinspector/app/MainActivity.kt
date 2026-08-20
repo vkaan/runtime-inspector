@@ -8,6 +8,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
@@ -59,6 +60,9 @@ class MainActivity : Activity() {
 
     /** Non-null while the help view is showing, so back returns to the list. */
     private var helpFor: Risk? = null
+
+    /** True while Temizle is asking for confirmation. */
+    private var confirmingClear = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -184,7 +188,10 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun actions(): View = LinearLayout(this).apply {
+    private fun actions(): View =
+        if (confirmingClear) confirmClearActions() else defaultActions()
+
+    private fun defaultActions(): View = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         setPadding(0, 0, 0, dp(8))
         addView(
@@ -197,9 +204,59 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { rightMargin = dp(10) },
         )
         addView(
-            outlinedButton("Temizle") { PlatformLog.clear(); render() },
+            outlinedButton("Temizle") { confirmingClear = true; render() },
             LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f),
         )
+    }
+
+    private fun confirmClearActions(): View = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(14), dp(14), dp(14), dp(14))
+        background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(12).toFloat()
+            setColor(SURFACE)
+            setStroke(dp(1), HAIRLINE)
+        }
+        addView(
+            label("Bulguları temizlemek istediğinize emin misiniz?", 15f, TEXT, Typeface.BOLD),
+            LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(14) },
+        )
+        addView(
+            LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(
+                    secondaryButton("Vazgeç") { confirmingClear = false; render() },
+                    LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { rightMargin = dp(10) },
+                )
+                addView(
+                    primaryButton("Evet, temizle") {
+                        PlatformLog.clear(); confirmingClear = false; render()
+                    },
+                    LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f),
+                )
+            },
+        )
+    }
+
+    // Confirm dialog's primary action — same look as filledButton, no ripple.
+    private fun primaryButton(text: String, onClick: () -> Unit): Button = button(text, onClick).apply {
+        setTextColor(SURFACE)
+        background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(12).toFloat()
+            setColor(BRAND)
+        }
+    }
+
+    // Token's dialog_box_info_330 secondary button, token theme: gray_200 surface, gray_1000 (MUTED) text.
+    private fun secondaryButton(text: String, onClick: () -> Unit): Button = button(text, onClick).apply {
+        setTextColor(MUTED)
+        background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(12).toFloat()
+            setColor(0xFFE3E5ED.toInt()) // gray_200
+        }
     }
 
     /**
@@ -369,8 +426,8 @@ class MainActivity : Activity() {
         background = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dp(12).toFloat()
-            setColor(Color.TRANSPARENT)
-            setStroke(dp(1), BRAND)
+            setColor(SURFACE)
+            setStroke(dp(1), HAIRLINE)
         }
     }
 
@@ -381,7 +438,24 @@ class MainActivity : Activity() {
         typeface = interBold
         setPadding(dp(16), dp(12), dp(16), dp(12))
         minHeight = dp(48)
-        setOnClickListener { onClick() }
+        stateListAnimator = null
+        elevation = 0f
+        // Posted: fired straight from the click, İncele's heavy onClick work (a TSystem bind + file
+        // IO on the main thread) steals the bounce-back animation's first frames — Yenile's cheap
+        // render() doesn't, so the two looked like they ran at different speeds. A post() lets the
+        // animation get a frame in before the click work starts.
+        setOnClickListener { v -> v.post { onClick() } }
+        // A scale bounce instead of a color ripple — visible the same way on every button,
+        // whatever its background, instead of chasing contrast per button.
+        setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN ->
+                    v.animate().scaleX(0.95f).scaleY(0.95f).setDuration(80).start()
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
+            }
+            false
+        }
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()

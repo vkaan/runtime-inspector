@@ -2,6 +2,7 @@ package com.vkaan.runtimeinspector.cardservice
 
 enum class CardServiceApi {
     BIND,
+    UNBIND,
     SET_EMV_CONFIG,
     SET_EMV_CL_CONFIG,
     GET_CARD,

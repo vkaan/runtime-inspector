@@ -1,6 +1,7 @@
 package com.vkaan.runtimeinspector.rules
 
 import android.util.Log
+import com.vkaan.runtimeinspector.cardservice.rules.CardServiceBoundTwiceRule
 import com.vkaan.runtimeinspector.cardservice.rules.CardServiceCallAfterStopRule
 import com.vkaan.runtimeinspector.cardservice.rules.CardServiceCallBeforeBindRule
 import com.vkaan.runtimeinspector.cardservice.rules.EmvClConfigOrderRule
@@ -46,6 +47,7 @@ internal class RiskEngine(
                     PowerLossMidFlowRule,
                     TransactionInterruptedRule,
                     CardServiceCallBeforeBindRule,
+                    CardServiceBoundTwiceRule,
                     CardServiceCallAfterStopRule,
                     EmvClConfigOrderRule,
                     OnlinePinAfterCompleteRule,

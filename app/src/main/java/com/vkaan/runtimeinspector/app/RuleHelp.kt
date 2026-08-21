@@ -42,6 +42,14 @@ internal val RULE_HELP: Map<String, RuleHelp> = mapOf(
             "kart cevabından okuyup dallanmayı ondan sonra yap; tamamlama çağrısını akışın " +
             "en sonuna bırak.",
     ),
+    "CARD_SERVICE_BOUND_TWICE" to RuleHelp(
+        cause = "Kart servisine bir client zaten bağlıyken (unbound satırı gelmeden) yeniden " +
+            "bind olundu. Normal akış bind → unbound → bind'dir; aradaki unbound atlandığı için " +
+            "önceki bağlantı hiç bırakılmadı.",
+        fix = "Her bind'i bir unbind ile eşle: bağlandığın yerde onDestroy/onStop'ta unbindService " +
+            "çağır. Aynı servise birden fazla yerden (iki Activity/Fragment) bağlanıyorsan tek bir " +
+            "yere indir; bırakılmayan bağlantı sızar ve callback'ler iki kez tetiklenebilir.",
+    ),
     "CARD_SERVICE_CALLED_BEFORE_BIND" to RuleHelp(
         cause = "Kart servisi bind olduğunu bildirmeden önce bir API çağrısı yapıldı. Servis " +
             "bu çağrıları sessizce düşürebilir ya da reddedebilir.",

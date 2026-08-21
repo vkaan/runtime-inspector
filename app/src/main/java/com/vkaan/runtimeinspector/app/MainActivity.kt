@@ -1,6 +1,5 @@
 package com.vkaan.runtimeinspector.app
 
-import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -16,6 +15,8 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.activity.viewModels
 import com.vkaan.runtimeinspector.RuntimeInspector
 import com.vkaan.runtimeinspector.rules.Risk
 import java.text.SimpleDateFormat
@@ -27,7 +28,7 @@ import java.util.Locale
  * notification was tapped on. Also the reason this Activity exists at all — an app that has never
  * been launched is in Android's stopped state, where it gets no BOOT_COMPLETED and cannot be bound.
  */
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
 
     // Token's palette, all from uicomponents_v2.aar. Brand is the opulent-blue ramp.
     private companion object {
@@ -51,18 +52,8 @@ class MainActivity : Activity() {
 
     private lateinit var column: LinearLayout
 
-    /** Which finding to open expanded, from the notification that was tapped. */
-    private var openRuleId: String? = null
-    private var openSubject: String? = null
-
-    /** Cards the user has tapped open, by rule + subject. */
-    private val expanded = mutableSetOf<String>()
-
-    /** Non-null while the help view is showing, so back returns to the list. */
-    private var helpFor: Risk? = null
-
-    /** True while Temizle is asking for confirmation. */
-    private var confirmingClear = false
+    // All screen state and the actions on it live here, so it survives rotation.
+    private val viewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,9 +74,9 @@ class MainActivity : Activity() {
     }
 
     // The notification uses SINGLE_TOP, so a tap on a running app lands here.
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        intent?.let { readIntent(it) }
+        readIntent(intent)
         render()
     }
 
@@ -96,8 +87,7 @@ class MainActivity : Activity() {
 
     // Help view is a second screen inside this Activity, so back has to unwind it first.
     override fun onBackPressed() {
-        if (helpFor != null) {
-            helpFor = null
+        if (viewModel.back()) {
             render()
             return
         }
@@ -105,39 +95,33 @@ class MainActivity : Activity() {
     }
 
     private fun readIntent(intent: Intent) {
-        openRuleId = intent.getStringExtra(RuntimeInspector.EXTRA_RULE_ID)
-        openSubject = intent.getStringExtra(RuntimeInspector.EXTRA_SUBJECT)
-        // Arrived from a notification: that card starts open.
-        openRuleId?.let { expanded += key(it, openSubject) }
+        viewModel.openFromNotification(
+            intent.getStringExtra(RuntimeInspector.EXTRA_RULE_ID),
+            intent.getStringExtra(RuntimeInspector.EXTRA_SUBJECT),
+        )
     }
 
-    private fun key(ruleId: String, subject: String?) = "$ruleId:${subject.orEmpty()}"
-
     private fun render() {
-        helpFor?.let { renderHelp(it); return }
-
-        val risks = RuntimeInspector.risks()
-        val opened = risks.firstOrNull { it.ruleId == openRuleId && it.subject == openSubject }
+        val s = viewModel.state()
+        s.helpFor?.let { renderHelp(it); return }
 
         column.removeAllViews()
-        column.addView(header(risks))
-        column.addView(actions())
+        column.addView(header(s.rest + listOfNotNull(s.opened)))
+        column.addView(actions(s.confirmingClear))
 
-        if (openRuleId != null && opened == null) {
-            column.addView(note("$openRuleId artık bellekte değil — servis yeniden başlamış olabilir."))
+        if (s.openRuleId != null && s.opened == null) {
+            column.addView(note("${s.openRuleId} artık bellekte değil — servis yeniden başlamış olabilir."))
         }
-        opened?.let {
+        s.opened?.let {
             column.addView(sectionTitle("Bildirimden gelen"))
-            column.addView(findingCard(it))
+            column.addView(findingCard(it, s.expanded))
         }
 
-        val rest = risks.filter { it != opened }
-        column.addView(sectionTitle(if (opened == null) "Bulgular" else "Diğer bulgular"))
-        if (rest.isEmpty()) {
+        column.addView(sectionTitle(if (s.opened == null) "Bulgular" else "Diğer bulgular"))
+        if (s.rest.isEmpty()) {
             column.addView(note("Henüz bulgu yok. İncele'ye basınca son log penceresi kurallardan geçer."))
         } else {
-            rest.sortedByDescending { it.lastTimestampMillis }
-                .forEach { column.addView(findingCard(it)) }
+            s.rest.forEach { column.addView(findingCard(it, s.expanded)) }
         }
     }
 
@@ -148,7 +132,7 @@ class MainActivity : Activity() {
 
         column.removeAllViews()
         column.addView(
-            outlinedButton("← Geri") { helpFor = null; render() },
+            outlinedButton("← Geri") { viewModel.closeHelp(); render() },
             LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
                 .apply { bottomMargin = dp(18) },
         )
@@ -188,7 +172,7 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun actions(): View =
+    private fun actions(confirmingClear: Boolean): View =
         if (confirmingClear) confirmClearActions() else defaultActions()
 
     private fun defaultActions(): View = LinearLayout(this).apply {
@@ -196,7 +180,7 @@ class MainActivity : Activity() {
         setPadding(0, 0, 0, dp(8))
         addView(
             // Elle basıldı: buffer büyümemiş olsa da eldeki pencereyi kurallardan geçir.
-            filledButton("İncele") { PlatformLog.pull(this@MainActivity, force = true) },
+            filledButton("İncele") { viewModel.incele() },
             LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { rightMargin = dp(10) },
         )
         addView(
@@ -204,7 +188,7 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { rightMargin = dp(10) },
         )
         addView(
-            outlinedButton("Temizle") { confirmingClear = true; render() },
+            outlinedButton("Temizle") { viewModel.startClear(); render() },
             LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f),
         )
     }
@@ -226,13 +210,11 @@ class MainActivity : Activity() {
             LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 addView(
-                    secondaryButton("Vazgeç") { confirmingClear = false; render() },
+                    secondaryButton("Vazgeç") { viewModel.cancelClear(); render() },
                     LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { rightMargin = dp(10) },
                 )
                 addView(
-                    primaryButton("Evet, temizle") {
-                        PlatformLog.clear(); confirmingClear = false; render()
-                    },
+                    primaryButton("Evet, temizle") { viewModel.confirmClear(); render() },
                     LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f),
                 )
             },
@@ -263,8 +245,8 @@ class MainActivity : Activity() {
      * One finding. Tapping it expands the counts and times, and offers the explanation. Cards
      * arrived at from a notification start expanded.
      */
-    private fun findingCard(risk: Risk): View {
-        val cardKey = key(risk.ruleId, risk.subject)
+    private fun findingCard(risk: Risk, expanded: Set<String>): View {
+        val cardKey = riskKey(risk.ruleId, risk.subject)
         val open = cardKey in expanded
         val accent = accentOf(risk)
 
@@ -300,7 +282,7 @@ class MainActivity : Activity() {
                 addView(detailRow("Tekrar", "${risk.occurrences}"))
                 risk.instanceId?.let { addView(detailRow("Instance", "#$it")) }
                 addView(
-                    outlinedButton("Daha fazla bilgi") { helpFor = risk; render() },
+                    outlinedButton("Daha fazla bilgi") { viewModel.openHelp(risk); render() },
                     LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
                         .apply { topMargin = dp(14) },
                 )
@@ -327,7 +309,7 @@ class MainActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
                 .apply { bottomMargin = dp(10) }
             setOnClickListener {
-                if (open) expanded -= cardKey else expanded += cardKey
+                viewModel.toggle(cardKey)
                 render()
             }
         }

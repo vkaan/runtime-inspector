@@ -39,5 +39,7 @@ dependencies {
     // Token's platform API. getLog lives on TSystemServiceBinder; the wrapper needs minSdk 25.
     implementation(files("libs/TSystemWrapper_Version_13_SUNMI_PLATFORM_API.aar"))
     implementation(libs.androidx.core.ktx)
+    // ViewModel + `by viewModels()`; lifecycle-viewmodel comes in transitively.
+    implementation(libs.androidx.activity.ktx)
     testImplementation(libs.junit)
 }

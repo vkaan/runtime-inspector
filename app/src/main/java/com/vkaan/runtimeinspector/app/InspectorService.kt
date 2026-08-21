@@ -98,6 +98,7 @@ class InspectorService : Service() {
         Log.i(TAG, "Host unbound — pulling the log.")
         PlatformLog.pull(this)
         // Rebind goes through onBind again, which is all a restarted host needs.
+
         return false
     }
 }

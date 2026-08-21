@@ -103,7 +103,11 @@ internal data class RuntimeState(
             cardServiceState = event.to,
             cardServiceSinceNanos =
                 if (event.to != event.from) event.elapsedRealtimeNanos else cardServiceSinceNanos,
-            cardServiceBound = cardServiceBound || CardServiceApi.BIND in event.apis,
+            cardServiceBound = when {
+                CardServiceApi.UNBIND in event.apis -> false
+                CardServiceApi.BIND in event.apis -> true
+                else -> cardServiceBound
+            },
             emvConfigured = emvConfigured || CardServiceApi.SET_EMV_CONFIG in event.apis,
         )
 

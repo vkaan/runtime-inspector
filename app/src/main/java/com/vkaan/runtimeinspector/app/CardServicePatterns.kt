@@ -51,4 +51,8 @@ internal val CARD_SERVICE_PATTERNS = listOf(
         Regex("A client is bound"),
         CardServiceApi.BIND,
     ),
+    CardServiceLogPattern(
+        Regex("A client is Unbound"),
+        CardServiceApi.UNBIND,
+    ),
 )

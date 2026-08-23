@@ -2,13 +2,11 @@ package com.vkaan.runtimeinspector.rules
 
 import android.util.Log
 import com.vkaan.runtimeinspector.cardservice.rules.CardServiceBoundTwiceRule
-import com.vkaan.runtimeinspector.cardservice.rules.CardServiceCallAfterStopRule
 import com.vkaan.runtimeinspector.cardservice.rules.CardServiceCallBeforeBindRule
 import com.vkaan.runtimeinspector.cardservice.rules.EmvClConfigOrderRule
 import com.vkaan.runtimeinspector.cardservice.rules.IccTakenOutEarlyRule
 import com.vkaan.runtimeinspector.cardservice.rules.OnlinePinAfterCompleteRule
 import com.vkaan.runtimeinspector.cardservice.rules.TransactionAbandonedRule
-import com.vkaan.runtimeinspector.cardservice.rules.TransactionInterruptedRule
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent
 import com.vkaan.runtimeinspector.timeline.RuntimeState
 
@@ -25,8 +23,6 @@ internal class RiskEngine(
         fun withDefaultRules(
             backStackCeiling: Int,
             heapPercentCeiling: Int,
-            networkFlapCount: Int,
-            networkFlapWindowSeconds: Int,
             onReport: ((Risk) -> Unit)? = null,
 
         ): RiskEngine =
@@ -35,20 +31,12 @@ internal class RiskEngine(
                     StateLossRule,
                     BackStackGrowthRule(backStackCeiling),
                     MemoryPressureRule(heapPercentCeiling),
-                    NetworkFlappingRule(networkFlapCount, networkFlapWindowSeconds),
-                    RecreationMidFlowRule,
                     DuplicateScreenRule,
                     InterruptedFlowRule,
                     OrphanFragmentRule,
                     ActivityLeakRule,
-                    NetworkLossRule,
-                    MidFlowCrashRule,
-                    ScreenOffMidFlowRule,
-                    PowerLossMidFlowRule,
-                    TransactionInterruptedRule,
                     CardServiceCallBeforeBindRule,
                     CardServiceBoundTwiceRule,
-                    CardServiceCallAfterStopRule,
                     EmvClConfigOrderRule,
                     OnlinePinAfterCompleteRule,
                     IccTakenOutEarlyRule,

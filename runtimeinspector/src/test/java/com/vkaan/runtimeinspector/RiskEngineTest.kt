@@ -1,6 +1,5 @@
 package com.vkaan.runtimeinspector
 
-import com.vkaan.runtimeinspector.rules.RecreationMidFlowRule
 import com.vkaan.runtimeinspector.rules.Risk
 import com.vkaan.runtimeinspector.rules.RiskEngine
 import com.vkaan.runtimeinspector.rules.RiskRule
@@ -12,18 +11,17 @@ import org.junit.Test
 
 class RiskEngineTest {
 
-    // Fires on every Network LOST event; the first transport entry doubles as the subject so
+    // Fires on every Activity lifecycle event; the activity name doubles as the subject so
     // tests can steer which dedup key the risk lands on.
     private val rule = object : RiskRule {
         override val id = "TEST_RULE"
         override fun evaluate(event: RuntimeEvent, before: RuntimeState, after: RuntimeState): Risk? {
-            if (event !is RuntimeEvent.Network) return null
-            if (event.state != RuntimeEvent.Network.State.LOST) return null
+            if (event !is RuntimeEvent.Lifecycle) return null
             return Risk(
                 ruleId = id,
                 severity = Risk.Severity.WARNING,
                 message = "test finding",
-                subject = event.transports.firstOrNull(),
+                subject = event.name,
                 seq = event.seq,
                 timestampMillis = event.timestampMillis,
             )
@@ -33,7 +31,7 @@ class RiskEngineTest {
     private val state = RuntimeState()
 
     private fun fire(engine: RiskEngine, seq: Long, subject: String = "screenA") {
-        val event = networkEvent(seq, RuntimeEvent.Network.State.LOST, transports = listOf(subject))
+        val event = activityEvent(seq, id = 1, stage = Stage.DESTROYED, name = subject)
         engine.onEvent(event, state, state)
     }
 
@@ -89,7 +87,24 @@ class RiskEngineTest {
     // subject would file each rotation separately and `occurrences` could never leave 1.
     @Test
     fun `a rule firing on successive instances counts as one repeated finding`() {
-        val engine = RiskEngine(rules = listOf(RecreationMidFlowRule))
+        // Fires on every activity DESTROYED, carrying the activity name as subject and the
+        // instance id — so the three rotations below share a dedup key but differing instances.
+        val perInstanceRule = object : RiskRule {
+            override val id = "PER_INSTANCE_RULE"
+            override fun evaluate(event: RuntimeEvent, before: RuntimeState, after: RuntimeState): Risk? {
+                if (event !is RuntimeEvent.Lifecycle || event.stage != Stage.DESTROYED) return null
+                return Risk(
+                    ruleId = id,
+                    severity = Risk.Severity.WARNING,
+                    message = "destroyed",
+                    subject = event.name,
+                    instanceId = event.instanceId,
+                    seq = event.seq,
+                    timestampMillis = event.timestampMillis,
+                )
+            }
+        }
+        val engine = RiskEngine(rules = listOf(perInstanceRule))
         var state = RuntimeState()
         var seq = 0L
 

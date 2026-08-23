@@ -6,7 +6,6 @@ import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.SourceType
 import com.vkaan.runtimeinspector.timeline.RuntimeEvent.Lifecycle.Stage
 
 private const val MAX_DESTROY_SAMPLES = 3
-private const val MAX_NETWORK_LOSS_SAMPLES = 10
 
 internal data class RuntimeState(
     val appInForeground: Boolean = false,
@@ -29,10 +28,6 @@ internal data class RuntimeState(
     /** Fragments whose host Activity died, keyed to the host's death time (elapsedRealtimeNanos). */
     val orphanCandidates: Map<Int, Long> = emptyMap(),
     val destroyHeapSamples: List<DestroyHeapSample> = emptyList(),
-    /** null until the first connectivity callback arrives. */
-    val networkAvailable: Boolean? = null,
-    /** elapsedRealtimeNanos of recent network losses, oldest first. NETWORK_FLAPPING reads this. */
-    val recentNetworkLossNanos: List<Long> = emptyList(),
     val cardServiceState: CardServiceState = CardServiceState.IDLE,
     val cardServiceSinceNanos: Long = 0L,
     val cardServiceBound: Boolean = false,
@@ -81,23 +76,6 @@ internal data class RuntimeState(
         is RuntimeEvent.Memory -> copy(lastTrimMemory = event.levelName)
 
         is RuntimeEvent.ConfigChange -> copy(lastConfigChange = event.changedFields)
-
-        is RuntimeEvent.Network -> copy(
-            networkAvailable = event.state == RuntimeEvent.Network.State.AVAILABLE,
-            recentNetworkLossNanos =
-                if (event.state == RuntimeEvent.Network.State.LOST) {
-                    (recentNetworkLossNanos + event.elapsedRealtimeNanos)
-                        .takeLast(MAX_NETWORK_LOSS_SAMPLES)
-                } else {
-                    recentNetworkLossNanos
-                },
-        )
-
-        // Crash: the process dies right after this event; there is no future state to inform.
-        is RuntimeEvent.Crash -> this
-
-        // Rules read these off the event itself; no state field has a reader yet.
-        is RuntimeEvent.SystemSignal -> this
 
         is RuntimeEvent.CardService -> copy(
             cardServiceState = event.to,

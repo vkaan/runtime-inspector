@@ -83,44 +83,6 @@ fun heapEvent(
     trigger = trigger,
 )
 
-fun networkEvent(
-    seq: Long,
-    state: RuntimeEvent.Network.State,
-    transports: List<String> = emptyList(),
-    nanos: Long = seq,
-) = RuntimeEvent.Network(
-    seq = seq,
-    timestampMillis = seq,
-    elapsedRealtimeNanos = nanos,
-    state = state,
-    transports = transports,
-)
-
-fun crashEvent(
-    seq: Long,
-    exceptionClass: String = "java.lang.RuntimeException",
-    nanos: Long = seq,
-) = RuntimeEvent.Crash(
-    seq = seq,
-    timestampMillis = seq,
-    elapsedRealtimeNanos = nanos,
-    threadName = "main",
-    exceptionClass = exceptionClass,
-    exceptionMessage = "test crash",
-    topFrame = null,
-)
-
-fun systemEvent(
-    seq: Long,
-    signal: RuntimeEvent.SystemSignal.Signal,
-    nanos: Long = seq,
-) = RuntimeEvent.SystemSignal(
-    seq = seq,
-    timestampMillis = seq,
-    elapsedRealtimeNanos = nanos,
-    signal = signal,
-)
-
 fun cardServiceEvent(
     seq: Long,
     from: CardServiceState,

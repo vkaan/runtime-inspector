@@ -127,55 +127,6 @@ sealed interface RuntimeEvent : Parcelable {
 
 
     @Parcelize
-    data class Crash(
-        override val seq: Long,
-        override val timestampMillis: Long,
-        override val elapsedRealtimeNanos: Long,
-        val threadName: String,
-        val exceptionClass: String,
-        val exceptionMessage: String?,
-        val topFrame: String?,
-    ) : RuntimeEvent {
-        // Crash
-        override fun logLine(): String =
-            "CRASH $exceptionClass${exceptionMessage?.let { ": $it" }.orEmpty()} " +
-                "on thread=$threadName${topFrame?.let { " at $it" }.orEmpty()}"
-    }
-
-
-    @Parcelize
-    data class Network(
-        override val seq: Long,
-        override val timestampMillis: Long,
-        override val elapsedRealtimeNanos: Long,
-        val state: State,
-        val transports: List<String> = emptyList(),
-    ) : RuntimeEvent {
-        enum class State { AVAILABLE, LOST }
-
-        // Network
-        override fun logLine(): String =
-            "NETWORK ${state.name}" +
-                if (transports.isEmpty()) "" else " (${transports.joinToString("|")})"
-    }
-
-
-    /** Device-level signals delivered as system broadcasts (screen, battery, shutdown). */
-    @Parcelize
-    data class SystemSignal(
-        override val seq: Long,
-        override val timestampMillis: Long,
-        override val elapsedRealtimeNanos: Long,
-        val signal: Signal,
-    ) : RuntimeEvent {
-        enum class Signal { SCREEN_ON, SCREEN_OFF, BATTERY_LOW, BATTERY_OKAY, SHUTDOWN }
-
-        // SystemSignal
-        override fun logLine(): String = "SYSTEM ${signal.name}"
-    }
-
-
-    @Parcelize
     data class MemoryUsage(
         override val seq: Long,
         override val timestampMillis: Long,

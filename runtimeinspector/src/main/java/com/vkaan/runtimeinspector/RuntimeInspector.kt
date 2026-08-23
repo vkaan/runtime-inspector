@@ -15,11 +15,8 @@ import com.vkaan.runtimeinspector.cardservice.CardServiceLogState
 import com.vkaan.runtimeinspector.collector.CardServiceLogCollector
 import com.vkaan.runtimeinspector.collector.Collector
 import com.vkaan.runtimeinspector.collector.ComponentCallbacksCollector
-import com.vkaan.runtimeinspector.collector.ConnectivityCollector
-import com.vkaan.runtimeinspector.collector.CrashCollector
 import com.vkaan.runtimeinspector.collector.LifecycleCollector
 import com.vkaan.runtimeinspector.collector.ProcessLifecycleCollector
-import com.vkaan.runtimeinspector.collector.SystemBroadcastCollector
 import com.vkaan.runtimeinspector.report.RiskNotifier
 import com.vkaan.runtimeinspector.report.SessionContext
 import com.vkaan.runtimeinspector.report.SessionContextFactory
@@ -77,8 +74,6 @@ object RuntimeInspector {
                 riskEngine = RiskEngine.withDefaultRules(
                     backStackCeiling = initialConfig.backStackCeiling,
                     heapPercentCeiling = initialConfig.heapPercentCeiling,
-                    networkFlapCount = initialConfig.networkFlapCount,
-                    networkFlapWindowSeconds = initialConfig.networkFlapWindowSeconds,
                     onReport = notifier?.let { { risk -> it.notify(risk) } },
                 ),
             )
@@ -162,9 +157,6 @@ object RuntimeInspector {
             collectors += LifecycleCollector(sink)
             collectors += ProcessLifecycleCollector(sink)
             collectors += ComponentCallbacksCollector(sink)
-            collectors += ConnectivityCollector(sink)
-            collectors += CrashCollector(sink)
-            collectors += SystemBroadcastCollector(sink)
             addCardServiceCollector(sink)
             collectors.forEach { it.start(app) }
         }
@@ -275,9 +267,6 @@ object RuntimeInspector {
         val notifyOnRisk: Boolean = true,
         val backStackCeiling: Int = 10,
         val heapPercentCeiling: Int = 85,
-        /** NETWORK_FLAPPING: this many losses within the window below. Must be ≤ 10 (state cap). */
-        val networkFlapCount: Int = 3,
-        val networkFlapWindowSeconds: Int = 60,
         val cardServiceEnabled: Boolean = false,
         val cardServiceTags: List<String> = emptyList(),
         val cardServicePatterns: List<CardServiceLogPattern> = emptyList(),

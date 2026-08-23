@@ -9,17 +9,7 @@ internal val RULE_HELP: Map<String, RuleHelp> = mapOf(
             "işlemi completeEmvTxn bekliyorken, emvProcessType 1 ile yeni bir getCard geldi. " +
             "Önceki işlem hiç kapanmadı.",
         fix = "Yeni bir kart okuma başlatmadan önce açık işlemi bitir: completeEmvTxn çağır, " +
-            "ya da iptal/hata durumunda akışı düzgün sonlandırıp state'i sıfırla. Kullanıcı " +
-            "ekranı yarıda bırakıp baştan başlayabiliyorsa, o durumda da açık işlemi kapatan bir " +
-            "çağrı olmalı.",
-    ),
-    "TRANSACTION_INTERRUPTED" to RuleHelp(
-        cause = "Kart işlemi açıkken uygulama çöktü, arka plana düştü, ekran kapandı ya da " +
-            "benzeri bir kesinti yaşandı. Terminal, kart okumayı bitiremeden yarıda kaldı.",
-        fix = "İşlem ekranını kesintiye dayanıklı yap: onPause/onStop'ta açık işlemi iptal et " +
-            "veya kaldığı yerden sürdürebileceğin bir state kaydet. Ödeme ekranında ekranın " +
-            "kapanmasını engellemek (keepScreenOn) ve config değişimlerinde Activity'nin " +
-            "yeniden yaratılmasına hazırlıklı olmak da bu uyarıyı ortadan kaldırır.",
+            "iptal/hata durumunda da completeEmvTxn çağırmayı unutma.",
     ),
     "CARD_REMOVED_DURING_TRANSACTION" to RuleHelp(
         cause = "EMV işlemi hâlâ açıkken kart çıkartıldı (IccTakeOut). Chip " +
@@ -49,21 +39,13 @@ internal val RULE_HELP: Map<String, RuleHelp> = mapOf(
             "önceki bağlantı hiç bırakılmadı.",
         fix = "Her bind'i bir unbind ile eşle: bağlandığın yerde onDestroy/onStop'ta unbindService " +
             "çağır. Aynı servise birden fazla yerden (iki Activity/Fragment) bağlanıyorsan tek bir " +
-            "yere indir; bırakılmayan bağlantı sızar ve callback'ler iki kez tetiklenebilir.",
+            "yere indir; bırakılmayan bağlantı sızar ve callback'ler iki kez tetiklenebilir, bu da " +
+            "kontrol olmadığı senaryoda mükerrer ödemelere sebep olabilir.",
     ),
     "CARD_SERVICE_CALLED_BEFORE_BIND" to RuleHelp(
         cause = "Kart servisi bind olduğunu bildirmeden önce bir API çağrısı yapıldı. Servis " +
             "bu çağrıları sessizce yok sayabilir ya da reddedebilir.",
-        fix = "Çağrıları bind callback'inden sonra yap; bind'i beklemeden getCard/config " +
-            "çağırma. Activity'nin onCreate'inde tetikleniyorsa, bağlantı hazır olduğunda " +
-            "çalışacak bir kuyruğa al.",
-    ),
-    "CARD_SERVICE_CALLED_AFTER_ACTIVITY_STOPPED" to RuleHelp(
-        cause = "Çağrıyı yapan Activity artık RESUMED değilken kart servisine bir çağrı " +
-            "gitti. Servis, host duraklamışken gelen çağrıları reddediyor.",
-        fix = "İşlem çağrılarını yalnızca ekran kullanıcının önündeyken (Activity aktifken) " +
-            "yap. Arka planda dönen bir timer çağrıyı geciktirip onPause'dan sonra " +
-            "gönderiyorsa, o işi lifecycle'a bağla ve durdur.",
+        fix = "Çağrıları bind callback'inden sonra yap; bind olmadan getCard/config çağırma.",
     ),
     "FRAGMENT_ADDED_WHILE_STOPPED" to RuleHelp(
         cause = "Host Activity STOPPED durumundayken Fragment oluşturuldu. Bu, klasik " +
@@ -107,56 +89,11 @@ internal val RULE_HELP: Map<String, RuleHelp> = mapOf(
             "yükle, listeleri sayfalı çek, önbellekleri sınırla. onTrimMemory geldiğinde " +
             "gerçekten bir şey serbest bırak.",
     ),
-    "MID_FLOW_CRASH" to RuleHelp(
-        cause = "Yakalanmamış bir exception uygulamayı düşürdü; üstelik bir akış açıkken " +
-            "olduysa işlem yarıda kaldı.",
-        fix = "Stack trace'i logcat'ten al ve kök nedeni düzelt. Ayrıca ödeme akışında " +
-            "çökmenin yarım işlem bırakmaması için, açılışta yarım kalmış işlemi tespit " +
-            "edip iptal eden bir kurtarma yolu bırak.",
-    ),
-    "ACTIVITY_RECREATED_MID_FLOW" to RuleHelp(
-        cause = "Açık bir akış varken Activity bir konfigürasyon değişikliği için yok edildi " +
-            "(dönme, dil, tema, ekran boyutu). Yeniden yaratılan ekran işlemin state'ini " +
-            "kaybedebilir.",
-        fix = "Akış state'ini Activity'nin dışına taşı (ViewModel veya saklanan state) ve " +
-            "onSaveInstanceState ile geri yükle. Ödeme ekranı için ilgili konfigürasyon " +
-            "değişimlerini configChanges ile kendin ele almak da bir seçenek.",
-    ),
     "APP_BACKGROUNDED_MID_FLOW" to RuleHelp(
         cause = "Açık bir navigasyon akışı varken uygulama arka plana düştü. Kullanıcı " +
             "döndüğünde akış yarım halde bekliyor.",
         fix = "Arka plana düşerken akışı ya iptal et ya da kaldığı yerden sürdürülebilir " +
             "biçimde kaydet. Ödeme gibi zaman aşımı olan akışlarda geri dönüşte süreyi " +
             "kontrol et ve gerekiyorsa baştan başlat.",
-    ),
-    "SCREEN_OFF_MID_FLOW" to RuleHelp(
-        cause = "Akış açıkken ekran kapandı. Çoğunlukla kullanıcı beklerken idle timeout " +
-            "devreye girer ve işlem yarıda kalır.",
-        fix = "İşlem ekranında ekranı açık tut (keepScreenOn) ve kendi zaman aşımını " +
-            "yönet: süre dolduğunda işlemi kendin iptal edip kullanıcıya net bir sonuç " +
-            "göster.",
-    ),
-    "NETWORK_LOSS" to RuleHelp(
-        cause = "Bağlantı koptu; akış açıkken olduysa gönderilmiş ama cevabı gelmemiş istek " +
-            "belirsiz durumda " +
-            "kaldı — banka tarafında geçmiş ama cevabı alınmamış olabilir.",
-        fix = "İstekleri idempotent yap ve yeniden denemede aynı referansı kullan, böylece " +
-            "çift çekim olmaz. Cevapsız kalan işlem için sonucu sorgulayan bir " +
-            "reconciliation adımı ekle.",
-    ),
-    "NETWORK_DROPPING_REPEATEDLY" to RuleHelp(
-        cause = "Bağlantı kısa aralıklarla birçok kez koptu. Zayıf sinyal ya da sürekli " +
-            "yeniden bağlanan bir network arayüzü; böyle bir bağlantıda tek denemeyle işlemi " +
-            "garanti edemezsin.",
-        fix = "Yeniden deneme politikasını artan bekleme süreleriyle (exponential backoff) kur " +
-            "ve her denemede aynı " +
-            "işlem referansını gönder. Kritik akışı başlatmadan önce bağlantının bir süre " +
-            "stabil kaldığını kontrol et.",
-    ),
-    "POWER_LOSS_MID_FLOW" to RuleHelp(
-        cause = "Akış açıkken cihaz kapanıyor ya da pil kritik seviyede. Terminal işlemin " +
-            "ortasında ölebilir.",
-        fix = "Pil düşükken yeni işlem başlatmayı engelle veya kullanıcıyı uyar. Açılışta " +
-            "yarım kalmış işlemi tespit edip iptal eden bir kurtarma adımı bırak.",
     ),
 )

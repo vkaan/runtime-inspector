@@ -8,7 +8,7 @@ deterministic risk rules over every event.
 It ships as two pieces:
 
 - **`runtimeinspector`** — the AAR that goes inside the app under test. It only collects.
-  Activity, Fragment, crash, heap and network signals exist only inside the observed
+  Activity, Fragment, heap and lifecycle signals exist only inside the observed
   process, so this half has to live there.
 - **`app`** — an installable APK that runs a foreground service. It holds the timeline, the
   rules, the findings and the notifications, and it pulls the card service log from the
@@ -34,14 +34,8 @@ platform API for the card service log.
 - **Heap sampling** — Java heap usage measured at fixed lifecycle points (Activity
   created/destroyed, app foregrounded/backgrounded, memory trim), so samples are comparable.
 - **Live instance tracking** — live Activity/Fragment counts and peaks, keyed by identity.
-- **Network connectivity** — default-network availability and transport (Wi-Fi, cellular, …)
-  via `registerDefaultNetworkCallback`.
-- **Crash capture** — uncaught exceptions recorded on the timeline before the process dies,
-  chaining (never replacing) the existing exception handler.
 - **Configuration changes** — decoded into the fields that actually changed
   (`ORIENTATION`, `UI_MODE`, `LOCALE`, …) rather than a bare boolean.
-- **Device signals** — screen on/off, battery low/okay and shutdown, received as system
-  broadcasts; on a terminal these are business events, not housekeeping.
 - **Card service state** — a separate app's transaction state, tracked by pulling the
   platform log dump and matching its lines against patterns, so an interruption in the host
   app can be correlated with an open transaction in another process.
@@ -137,7 +131,6 @@ Events look like this:
 
 ```
 PROCESS app -> FOREGROUNDED
-NETWORK AVAILABLE (WIFI)
 ACTIVITY MainActivity#154959438 -> RESUMED
 BACKSTACK PUSHED PersonDetailFragment in MainActivity#154959438
 FRAGMENT PersonDetailFragment#192886170 -> RESUMED
@@ -150,9 +143,9 @@ When a rule fires, a `RISK` line appears in the same stream (`Log.w`, or `Log.e`
 `ERROR` severity):
 
 ```
-RISK [WARNING] ACTIVITY_RECREATED_MID_FLOW MainActivity#154959438 — Activity destroyed for a config
-change while its back stack held 1 entries — in-flight callbacks and results can be lost;
-verify state restoration.
+RISK [WARNING] ORPHAN_FRAGMENT PersonDetailFragment#192886170 — PersonDetailFragment still alive
+over 1s after its host Activity was destroyed — something is holding a reference to it
+(likely leaked).
 ```
 
 Findings are also available programmatically — **in the inspector app's process**, which is
@@ -177,6 +170,8 @@ is the normal path — `inspect()` is for a check partway through. The inspector
 screen also has an **İncele** button (a force read of the whole tail) and a **Yenile** button
 that just re-renders the current findings, so the platform call can be tried with no host app
 at all, and `am startservice … -a com.vkaan.runtimeinspector.INSPECT` does the same from adb.
+A **Temizle** button (with an inline confirmation) drops the shown findings and baselines the
+log buffer at that point, so the next İncele reports only the lines that arrive afterwards.
 
 The screen itself lists the findings as tap-to-expand cards — first/last seen, sequence and
 occurrence count — each with a **Daha fazla bilgi** button that opens a per-rule Turkish
@@ -195,21 +190,14 @@ still shows up in the log line as `Subject#instanceId`.
 | Rule | Severity | Fires when |
 |---|---|---|
 | `FRAGMENT_ADDED_WHILE_STOPPED` | ERROR | a Fragment is created while its host Activity is `STOPPED` — the signature of a commit after `onSaveInstanceState` |
-| `MID_FLOW_CRASH` | ERROR / WARNING | an uncaught exception kills the app; ERROR if a flow was open |
 | `LOW_MEMORY_WHILE_FOREGROUND` | ERROR / WARNING | `onTrimMemory(RUNNING_CRITICAL)` while foregrounded / heap over the configured ceiling (default 85%) |
-| `NETWORK_LOSS` | WARNING / INFO | the default network is lost while foregrounded; WARNING if a flow was open |
-| `NETWORK_DROPPING_REPEATEDLY` | WARNING | the network is lost 3 times (configurable) within 60s (configurable) — the link itself is unstable |
-| `ACTIVITY_RECREATED_MID_FLOW` | WARNING | an Activity is destroyed by a config change while its back stack is non-empty |
 | `ORPHAN_FRAGMENT` | WARNING | a Fragment is still alive 1s after its host Activity was destroyed |
 | `ACTIVITY_LEAK` | WARNING | across 3 destroy-time heap samples: live Activity count flat, heap climbing ≥ 1MB per step |
 | `DUPLICATE_SCREEN` | WARNING | two or more live instances of the same Activity class exist at once |
 | `BACK_STACK_TOO_DEEP` | WARNING | back stack depth reaches the configured ceiling (default 10) |
 | `APP_BACKGROUNDED_MID_FLOW` | INFO | the app is backgrounded while a back stack is non-empty |
-| `SCREEN_OFF_MID_FLOW` | WARNING | the screen turns off while foregrounded with a flow open — idle timeout mid-interaction |
-| `POWER_LOSS_MID_FLOW` | ERROR / WARNING | the device shuts down (ERROR) or reports low battery (WARNING) while a flow is open |
-| `TRANSACTION_INTERRUPTED` | ERROR / WARNING | a crash (ERROR), screen-off or Activity recreation (WARNING) lands while the card service has a transaction open |
 | `CARD_SERVICE_CALLED_BEFORE_BIND` | ERROR | a card service API is called before the service reports a bound client |
-| `CARD_SERVICE_CALLED_AFTER_ACTIVITY_STOPPED` | ERROR | a card service API is called while the host Activity is paused, stopped or destroyed |
+| `CARD_SERVICE_BOUND_TWICE` | WARNING | the card service is bound again while a client is still bound, with no unbind in between — the previous connection leaks |
 | `CONTACTLESS_CONFIG_BEFORE_CONTACT_CONFIG` | ERROR | `setEMVCLConfiguration` is called before `setEMVConfiguration` |
 | `ONLINE_PIN_AFTER_TRANSACTION_COMPLETE` | ERROR | an online PIN is requested after `completeEmvTxn` |
 | `CARD_REMOVED_DURING_TRANSACTION` | ERROR | `takeOutICC` is called while an EMV transaction still needs completing |
@@ -219,9 +207,9 @@ still shows up in the log line as `Subject#instanceId`.
 
 Every event is folded into a `RuntimeState` as it arrives: foreground status, the current
 screen, back stack depth per Activity, per-Activity lifecycle stages, live instance maps and
-peaks, last heap sample plus a short destroy-time history, network availability, the last
-memory trim level, the fields of the last configuration change, and the card service's
-current state with the time it was entered.
+peaks, last heap sample plus a short destroy-time history, the last memory trim level, the
+fields of the last configuration change, and the card service's current state with the time
+it was entered.
 
 `RuntimeState` itself stays `internal`; the rules are its consumer, and `risks()` is the
 public window over what they conclude.
@@ -240,8 +228,6 @@ RuntimeInspector.init(
         notifyOnRisk = true,      // status-bar notification per finding
         backStackCeiling = 10,    // BACK_STACK_TOO_DEEP threshold
         heapPercentCeiling = 85,  // LOW_MEMORY_WHILE_FOREGROUND heap threshold (%)
-        networkFlapCount = 3,     // NETWORK_DROPPING_REPEATEDLY: losses within the window (max 10)
-        networkFlapWindowSeconds = 60,
         cardServicePatterns = CARD_SERVICE_PATTERNS,  // line pattern -> API + state
         cardServiceEnabled = false,   // legacy logcat reader; see below
         cardServiceTags = emptyList(),
@@ -293,11 +279,13 @@ analyses the entire tail regardless of age, because the platform flushes late en
 window would otherwise throw away the transaction the user is standing there waiting for.
 
 A pattern names the `CardServiceApi` the line stands for and, when the line also moves the
-transaction on, the `CardServiceState` it moves to. That is what lets
-`TRANSACTION_INTERRUPTED` compare a screen-off in the host process against an open
-transaction in another one, and what the five call-ordering rules read.
+transaction on, the `CardServiceState` it moves to. That transaction state is what the
+call-ordering and sequencing rules read — `PREVIOUS_TRANSACTION_NOT_FINISHED`,
+`ONLINE_PIN_AFTER_TRANSACTION_COMPLETE`, `CARD_REMOVED_DURING_TRANSACTION`.
 
-The nine patterns live in the inspector app, in `CardServicePatterns.kt`.
+The ten patterns live in the inspector app, in `CardServicePatterns.kt` — including the
+`bound` / `Unbound` pair that `CARD_SERVICE_BOUND_TWICE` needs to tell a leaked re-bind from
+a normal reconnect.
 
 Matching is a substring search and every matching pattern counts, so one line can stand for
 more than one API. The transaction state comes from the first matching pattern that carries
@@ -364,8 +352,8 @@ runtimeinspector/                the AAR
 └── com/vkaan/runtimeinspector/
     ├── RuntimeInspector.kt      public entry point: init, inspect, risks, record
     ├── IInspector.aidl          the interface both processes compile against
-    ├── collector/               one per signal: lifecycle, process, memory, network,
-    │                            crash, broadcasts, heap, and the unused logcat reader
+    ├── collector/               one per signal: lifecycle, process, memory, heap,
+    │                            and the unused logcat reader
     ├── cardservice/
     │   ├── CardServiceState.kt  public state enum
     │   ├── CardServiceApi.kt    public API-name enum
@@ -384,11 +372,12 @@ app/                             the APK
 └── com/vkaan/runtimeinspector/app/
     ├── InspectorService.kt      foreground service, holds the binder
     ├── BootReceiver.kt          starts it at power-on
-    ├── MainActivity.kt          findings list, tap-to-expand cards, help view, İncele/Yenile
+    ├── MainActivity.kt          the View: findings list, tap-to-expand cards, help view, buttons
+    ├── MainViewModel.kt         screen state + actions (MVVM), survives rotation
     ├── RuleHelp.kt              per-rule Turkish cause/fix text for the detail screen
     ├── PlatformLog.kt           TSystem bind + getLog, growth check + retry backoff
     ├── DumpReader.kt            dump -> lines, 2 MB tail, last hour
-    └── CardServicePatterns.kt   the nine patterns
+    └── CardServicePatterns.kt   the ten patterns
 ```
 
 `RuntimeInspector` is the intended public surface — `init()`, `unbind()`, `isInitialized`,

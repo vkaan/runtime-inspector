@@ -15,7 +15,7 @@ internal object PlatformLog {
 
     private const val TAG = "RuntimeInspector"
 
-    // 0 app, 1 system, 2 both. We only list the card service package, so app is enough.
+    // 0 app, 1 system, 2 both. Only the card service package is listed, so app is enough.
     private const val LOG_TYPE_APP = 0
 
     // Token writes its own platform output here — getSysLog hardcodes /sdcard/Download/DeviceLog.txt.
@@ -23,7 +23,7 @@ internal object PlatformLog {
 
     private const val CARD_SERVICE_PACKAGE = "com.tokeninc.cardservice"
 
-    // What we leave behind in destDir: the window we read, nothing older.
+    // What stays behind in destDir: the window that was read, nothing older.
     private const val TRIMMED_NAME = "cardservice-recent.log"
 
     // The platform's live buffer — the only file in the dump that can hold anything recent.
@@ -45,7 +45,7 @@ internal object PlatformLog {
 
     private val retryHandler = Handler(Looper.getMainLooper())
 
-    // Where we are on the ladder above. Reset by a fresh pull, walked by the no-growth branch.
+    // Position on the ladder above. Reset by a fresh pull, walked by the no-growth branch.
     @Volatile
     private var retryIndex = 0
 
@@ -81,7 +81,7 @@ internal object PlatformLog {
 
     /**
      * [force] skips the "has the buffer grown" check: someone asked for this read by hand, so
-     * re-running the rules on the window we already have is the point.
+     * re-running the rules on the window already held is the point.
      */
     fun pull(context: Context, force: Boolean = false) {
         // A fresh pull abandons whatever the last ladder was still chasing and starts it over.
@@ -94,7 +94,7 @@ internal object PlatformLog {
     /**
      * Temizle: drop the shown findings and baseline the buffer here, so the next İncele reads only
      * the lines that arrive after this. The buffer itself is SUNMI's and can't be wiped, so this
-     * moves where we start reading instead. The archived window is deleted too.
+     * moves where reading starts instead. The archived window is deleted too.
      */
     fun clear() {
         fedBytes = lastBufferBytes
@@ -153,7 +153,7 @@ internal object PlatformLog {
     private fun readAndReport(destDir: File, force: Boolean) {
         // getLog answers with the directory it wrote to — result="/sdcard/Download/runtimeinspector"
         // — so there is no reason to read the rest of Download.
-        // Our own output is in here too — reading it back would replay the last window as new events.
+        // The trimmed output is in here too — reading it back would replay the last window as new events.
         val files = destDir.walkTopDown().filter { it.isFile && it.name != TRIMMED_NAME }.toList()
         if (files.isEmpty()) {
             Log.w(TAG, "getLog: nothing written to ${destDir.absolutePath}")
@@ -168,7 +168,7 @@ internal object PlatformLog {
             Log.i(TAG, "getLog file: ${file.absolutePath} ${file.length()} bytes | $firstLine")
         }
         // The platform flushes in ~128KiB blocks: 8983288 -> 9114351 -> 9245366 bytes over an
-        // afternoon. Same size means the transaction we just watched is not in the file yet.
+        // afternoon. Same size means the transaction just watched is not in the file yet.
         val bufferBytes = files.firstOrNull { it.name == BUFFER_NAME }?.length() ?: 0L
         if (!force && bufferBytes > 0L && bufferBytes == lastBufferBytes) {
             Log.i(TAG, "getLog: $BUFFER_NAME still $bufferBytes bytes — nothing flushed, not read.")
@@ -209,12 +209,12 @@ internal object PlatformLog {
     }
 
     /**
-     * The platform writes its whole history every time, days of it. We keep the window we actually
-     * read and drop the raw dump, so the folder holds that window and not two days.
+     * The platform writes its whole history every time, days of it. Only the window actually read is
+     * kept and the raw dump dropped, so the folder holds that window and not two days.
      */
     private fun keepOnlyTrimmed(destDir: File, files: List<File>, kept: List<String>) {
         // Otherwise a pull that kept nothing blanks the last good window and deletes the dump that
-        // could tell us why.
+        // could explain why.
         if (kept.isEmpty()) {
             Log.w(TAG, "Nothing kept — raw dumps left in place.")
             return
@@ -226,7 +226,7 @@ internal object PlatformLog {
             Log.w(TAG, "Could not write ${trimmed.absolutePath}: ${e.message}")
             return
         }
-        // Only inside our own folder — /sdcard/Download holds files that are not ours.
+        // Only inside destDir — /sdcard/Download holds files that belong to others.
         val dropped = files.count { it != trimmed && it.parentFile == destDir && it.delete() }
         Log.i(TAG, "Trimmed to ${trimmed.absolutePath}: ${kept.size} lines, $dropped raw dumps deleted")
     }

@@ -60,7 +60,7 @@ internal class LifecycleCollector(
 
     // The callbacks' own `fm` argument is ignored throughout: with recursive registration it is
     // the CHILD FragmentManager for nested fragments, whose back stack is not the host's.
-    // `hostFm` is captured once per Activity and is the one we want to measure.
+    // `hostFm` is captured once per Activity and is the one to measure.
     private fun fragmentCallbacks(hostActivityId: Int, hostFm: FragmentManager) =
         object : FragmentManager.FragmentLifecycleCallbacks() {
             override fun onFragmentAttached(fm: FragmentManager, f: Fragment, ctx: Context) =

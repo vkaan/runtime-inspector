@@ -16,10 +16,10 @@ internal object DumpReader {
     private const val TAG = "RuntimeInspector"
 
     // The platform flushes the log in ~128KiB blocks, so a line can reach the file half an hour
-    // after it happened. Shorter than that and we drop lines that only just arrived.
+    // after it happened. Shorter than that drops lines that only just arrived.
     const val WINDOW_MILLIS = 60 * 60 * 1000L
 
-    // A 13-minute window measured 182 lines, so this is a wide margin over what we need.
+    // A 13-minute window measured 182 lines, so this is a wide margin over what is needed.
     private const val TAIL_BYTES = 2 * 1024 * 1024L
 
     private val STAMP = SimpleDateFormat("MM-dd HH:mm:ss", Locale.US)
@@ -60,7 +60,7 @@ internal object DumpReader {
         }
 
         val kept = files.flatMap { file ->
-            // The platform writes this folder too, so a file can be gone by the time we open it.
+            // The platform writes this folder too, so a file can be gone by the time it is opened.
             // exists() would be the same race one line earlier.
             try {
                 // The zips are the platform's rotated logs — applog_20260811-133246.txt and older.

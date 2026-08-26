@@ -5,7 +5,7 @@ import com.vkaan.runtimeinspector.cardservice.CardServiceLogPattern
 import com.vkaan.runtimeinspector.cardservice.CardServiceState
 
 /**
- * The card service lines we know how to read. They live here now that the inspector app pulls the
+ * The card service lines that can be read. They live here now that the inspector app pulls the
  * log itself — the app under test no longer configures anything.
  */
 internal val CARD_SERVICE_PATTERNS = listOf(

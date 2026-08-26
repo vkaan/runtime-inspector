@@ -24,25 +24,30 @@ platform API for the card service log.
 
 ## Features
 
-- **Activity & Fragment lifecycle** — every transition, with per-instance identity and a
-  configuration-change flag that distinguishes a rotation from a genuine background.
-- **Fragment back stack** — push/pop events, plus depth tracked per Activity and measured from
-  the `FragmentManager` rather than counted, so it survives rotation and Activity teardown.
-- **Process lifecycle** — whole-app foreground/background, debounced so rotations don't
-  register as false backgrounding.
+Collected through Android's own callback APIs — no instrumentation, no reflection:
+
+- **Activity & Fragment lifecycle** — every transition with per-instance identity, plus a
+  configuration-change flag that tells a rotation apart from a real background.
+- **Fragment back stack** — push/pop events, with depth read from the `FragmentManager` per
+  Activity (not counted), so it survives rotation and Activity teardown.
+- **Process lifecycle** — whole-app foreground/background, debounced so a rotation isn't seen
+  as backgrounding.
 - **Memory pressure** — `onTrimMemory` / `onLowMemory` levels.
-- **Heap sampling** — Java heap usage measured at fixed lifecycle points (Activity
-  created/destroyed, app foregrounded/backgrounded, memory trim), so samples are comparable.
-- **Live instance tracking** — live Activity/Fragment counts and peaks, keyed by identity.
-- **Configuration changes** — decoded into the fields that actually changed
-  (`ORIENTATION`, `UI_MODE`, `LOCALE`, …) rather than a bare boolean.
-- **Card service state** — a separate app's transaction state, tracked by pulling the
-  platform log dump and matching its lines against patterns, so an interruption in the host
-  app can be correlated with an open transaction in another process.
-- **Runtime timeline** — one ordered, bounded, thread-safe log of all of the above.
-- **Runtime state** — a live summary derived from the timeline.
-- **Risk Engine** — deterministic rules evaluated on every event, with severity levels,
-  deduplication, and warnings via logcat and a public accessor.
+- **Heap sampling** — Java heap measured at fixed lifecycle points (Activity created/destroyed,
+  app foreground/background, memory trim), so samples are comparable.
+- **Live instance tracking** — live Activity/Fragment counts, keyed by identity.
+- **Configuration changes** — decoded into the fields that changed (`ORIENTATION`, `UI_MODE`,
+  `LOCALE`, …), not a bare boolean.
+- **Card service state** — another app's transaction state, learned by pulling the platform
+  log dump and matching its lines, so a host-app interruption can be tied to an open
+  transaction in that other process.
+
+These feed three derived layers:
+
+- **Timeline** — one ordered, bounded, thread-safe log of every event above.
+- **Runtime state** — a live summary folded from the timeline by a pure reducer.
+- **Risk Engine** — deterministic rules run on every event, with severities, deduplication,
+  and findings surfaced via logcat, a notification, and a public accessor.
 
 ## Requirements
 
@@ -180,22 +185,30 @@ explanation (`RuleHelp.kt`).
 ## Risk rules
 
 Every rule is a pure function of `(event, state before, state after)` — no clocks, no
-randomness, no rule-local state. The same event sequence always produces the same findings,
-so every rule is unit-testable without a device. Findings are counted per rule + subject, where
-the subject is a stable name (an Activity or Fragment class) rather than a particular instance —
-so twenty rotations of the same screen are one finding with `occurrences = 20`, not twenty
-findings. The instance the finding first happened to is kept alongside it in `instanceId` and
-still shows up in the log line as `Subject#instanceId`.
+randomness, no rule-local state — so the same event sequence always yields the same findings
+and every rule is unit-testable without a device.
+
+Findings are deduplicated by rule + subject, where the subject is a stable name (an Activity
+or Fragment class, a card-service state or API) rather than a single instance. Twenty rotations
+of one screen are one finding with `occurrences = 20`, not twenty findings; the instance it
+first happened to is kept in `instanceId` and still shows in the log line as `Subject#instanceId`.
+
+**Lifecycle & memory**
 
 | Rule | Severity | Fires when |
 |---|---|---|
 | `FRAGMENT_ADDED_WHILE_STOPPED` | ERROR | a Fragment is created while its host Activity is `STOPPED` — the signature of a commit after `onSaveInstanceState` |
 | `LOW_MEMORY_WHILE_FOREGROUND` | ERROR / WARNING | `onTrimMemory(RUNNING_CRITICAL)` while foregrounded / heap over the configured ceiling (default 85%) |
 | `ORPHAN_FRAGMENT` | WARNING | a Fragment is still alive 1s after its host Activity was destroyed |
-| `ACTIVITY_LEAK` | WARNING | across 3 destroy-time heap samples: live Activity count flat, heap climbing ≥ 1MB per step |
+| `ACTIVITY_LEAK` | WARNING | across 3 destroy-time heap samples: live Activity count flat, heap climbing ≥ 1 MB per step |
 | `DUPLICATE_SCREEN` | WARNING | two or more live instances of the same Activity class exist at once |
 | `BACK_STACK_TOO_DEEP` | WARNING | back stack depth reaches the configured ceiling (default 10) |
 | `APP_BACKGROUNDED_MID_FLOW` | INFO | the app is backgrounded while a back stack is non-empty |
+
+**Card service**
+
+| Rule | Severity | Fires when |
+|---|---|---|
 | `CARD_SERVICE_CALLED_BEFORE_BIND` | ERROR | a card service API is called before the service reports a bound client |
 | `CARD_SERVICE_BOUND_TWICE` | WARNING | the card service is bound again while a client is still bound, with no unbind in between — the previous connection leaks |
 | `CONTACTLESS_CONFIG_BEFORE_CONTACT_CONFIG` | ERROR | `setEMVCLConfiguration` is called before `setEMVConfiguration` |

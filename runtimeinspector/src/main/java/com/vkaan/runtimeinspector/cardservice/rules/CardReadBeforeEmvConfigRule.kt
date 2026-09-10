@@ -15,13 +15,18 @@ internal object CardReadBeforeEmvConfigRule : RiskRule {
         if (CardServiceApi.GET_CARD !in event.apis) return null
         // getCard without a bind is CardServiceCallBeforeBindRule's finding, not this one.
         if (!before.cardServiceBound) return null
-        if (before.emvConfigured) return null
+        if (before.emvConfigured && before.emvClConfigured) return null
+
+        val missing = buildList {
+            if (!before.emvConfigured) add("setEMVConfiguration")
+            if (!before.emvClConfigured) add("setEMVCLConfiguration")
+        }.joinToString(" + ")
 
         return Risk(
             ruleId = id,
             severity = Risk.Severity.ERROR,
-            message = "getCard was called before EMV configuration was initialized — " +
-                    "setEMVConfiguration must run first or on-us cards fail to read.",
+            message = "getCard was called before EMV configuration was fully initialized — " +
+                    "$missing missing; on-us cards fail to read.",
             subject = CardServiceApi.GET_CARD.name,
             seq = event.seq,
             timestampMillis = event.timestampMillis,

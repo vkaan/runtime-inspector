@@ -27,9 +27,10 @@ internal val RULE_HELP: Map<String, RuleHelp> = mapOf(
             "tetiklenen konfigürasyon çağrıları bu sırayı bozuyor.",
     ),
     "CARD_READ_BEFORE_EMV_CONFIG" to RuleHelp(
-        cause = "getCard, setEMVConfiguration hiç çağrılmadan yapıldı. Uygulama parameter_action " +
-            "trigger'ıyla açıldığında EMV konfigürasyon dosyaları (emv_config.xml / emvcl_config.xml) " +
-            "açıkça yüklenmeli; yüklenmediği için on-us kartlar okunamıyor.",
+        cause = "getCard, EMV konfigürasyonu tam yüklenmeden yapıldı — emv_config.xml " +
+            "(setEMVConfiguration) veya emvcl_config.xml (setEMVCLConfiguration) eksik. Uygulama " +
+            "parameter_action trigger'ıyla açıldığında bu iki dosya da açıkça yüklenmeli; biri bile " +
+            "eksikse ilgili kartlar okunamıyor.",
         fix = "Kart okumadan önce konfigürasyonu bind sonrası bir kez yükle: setEMVConfig ile " +
             "emv_config.xml, setEMVCLConfig ile emvcl_config.xml. Trigger'la açılan akışta da " +
             "bu adımı atlama.",

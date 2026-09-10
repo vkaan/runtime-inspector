@@ -32,6 +32,7 @@ internal data class RuntimeState(
     val cardServiceSinceNanos: Long = 0L,
     val cardServiceBound: Boolean = false,
     val emvConfigured: Boolean = false,
+    val emvClConfigured: Boolean = false,
 ) {
 
     data class Screen(val name: String, val instanceId: Int) {
@@ -87,6 +88,7 @@ internal data class RuntimeState(
                 else -> cardServiceBound
             },
             emvConfigured = emvConfigured || CardServiceApi.SET_EMV_CONFIG in event.apis,
+            emvClConfigured = emvClConfigured || CardServiceApi.SET_EMV_CL_CONFIG in event.apis,
         )
 
         is RuntimeEvent.MemoryUsage -> {

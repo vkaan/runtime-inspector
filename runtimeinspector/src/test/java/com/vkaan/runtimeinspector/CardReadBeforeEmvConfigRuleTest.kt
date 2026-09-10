@@ -15,7 +15,7 @@ class CardReadBeforeEmvConfigRuleTest {
     private val bound = RuntimeState().reduce(cardServiceCall(seq = 0, apis = listOf(CardServiceApi.BIND)))
 
     @Test
-    fun `fires when a bound client reads a card before EMV config is set`() {
+    fun `fires when a bound client reads a card before any EMV config is set`() {
         val event = cardServiceCall(seq = 1, apis = listOf(CardServiceApi.GET_CARD))
 
         val risk = rule.evaluate(event, before = bound, after = bound.reduce(event))
@@ -25,9 +25,21 @@ class CardReadBeforeEmvConfigRuleTest {
     }
 
     @Test
-    fun `stays silent once setEMVConfig has run`() {
-        val configured = bound.reduce(cardServiceCall(seq = 1, apis = listOf(CardServiceApi.SET_EMV_CONFIG)))
+    fun `fires when only the contact config was set and the contactless one is missing`() {
+        val contactOnly = bound.reduce(cardServiceCall(seq = 1, apis = listOf(CardServiceApi.SET_EMV_CONFIG)))
         val event = cardServiceCall(seq = 2, apis = listOf(CardServiceApi.GET_CARD))
+
+        val risk = rule.evaluate(event, before = contactOnly, after = contactOnly.reduce(event))
+
+        assertEquals(Risk.Severity.ERROR, risk?.severity)
+    }
+
+    @Test
+    fun `stays silent once both configs have run`() {
+        val configured = bound
+            .reduce(cardServiceCall(seq = 1, apis = listOf(CardServiceApi.SET_EMV_CONFIG)))
+            .reduce(cardServiceCall(seq = 2, apis = listOf(CardServiceApi.SET_EMV_CL_CONFIG)))
+        val event = cardServiceCall(seq = 3, apis = listOf(CardServiceApi.GET_CARD))
 
         val risk = rule.evaluate(event, before = configured, after = configured.reduce(event))
 

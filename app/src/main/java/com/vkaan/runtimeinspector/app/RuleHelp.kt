@@ -26,6 +26,14 @@ internal val RULE_HELP: Map<String, RuleHelp> = mapOf(
             "aynı yerde, sırayla ve bind tamamlandıktan sonra çağır; ayrı ayrı yerlerden " +
             "tetiklenen konfigürasyon çağrıları bu sırayı bozuyor.",
     ),
+    "CARD_READ_BEFORE_EMV_CONFIG" to RuleHelp(
+        cause = "getCard, setEMVConfiguration hiç çağrılmadan yapıldı. Uygulama parameter_action " +
+            "trigger'ıyla açıldığında EMV konfigürasyon dosyaları (emv_config.xml / emvcl_config.xml) " +
+            "açıkça yüklenmeli; yüklenmediği için on-us kartlar okunamıyor.",
+        fix = "Kart okumadan önce konfigürasyonu bind sonrası bir kez yükle: setEMVConfig ile " +
+            "emv_config.xml, setEMVCLConfig ile emvcl_config.xml. Trigger'la açılan akışta da " +
+            "bu adımı atlama.",
+    ),
     "ONLINE_PIN_AFTER_TRANSACTION_COMPLETE" to RuleHelp(
         cause = "completeEmvTxn'den sonra online PIN istendi. İşlem o noktada sonlanmış " +
             "durumda, dolayısıyla PIN'in gideceği bir yer yok.",
